@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Sadhana Tracker</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root { --secondary: #3498db; --success: #27ae60; --danger: #e74c3c; --light: #f4f7f6; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--light); margin: 0; padding: 20px; }
+        .container { max-width: 480px; margin: 30px auto; }
+        .card { background: white; padding: 28px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #2c3e50; margin: 0 0 4px; }
+        .subtitle { text-align: center; color: #888; font-size: 13px; margin-bottom: 22px; }
+        label { font-weight: 600; font-size: 13px; color: #444; display: block; margin: 12px 0 4px; }
+        input, select {
+            width: 100%; padding: 11px 14px; border: 1px solid #ddd;
+            border-radius: 8px; font-size: 14px; background: white;
+        }
+        input:focus, select:focus {
+            outline: none; border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+        }
+        button {
+            width: 100%; padding: 12px; margin-top: 18px; border: none;
+            border-radius: 8px; font-size: 15px; font-weight: 600;
+            cursor: pointer; transition: opacity 0.2s;
+        }
+        button:hover:not(:disabled) { opacity: 0.88; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-success { background: var(--success); color: white; }
+        .msg {
+            display: none; text-align: center; padding: 12px;
+            margin-top: 14px; border-radius: 8px; font-weight: 600; font-size: 13px;
+        }
+        .msg.success { background: #e8f5e9; color: var(--success); }
+        .msg.error   { background: #ffebee; color: var(--danger); }
+        .login-link  { text-align: center; margin-top: 18px; font-size: 13px; color: #888; }
+        .login-link a { color: var(--secondary); font-weight: 600; text-decoration: none; }
+        .section-divider {
+            border: none; border-top: 1px dashed #e0e0e0; margin: 20px 0 6px;
+        }
+        .section-label {
+            font-size: 11px; color: #aaa; text-transform: uppercase;
+            letter-spacing: 0.8px; font-weight: 700; margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h2>🙏 Create Account</h2>
+        <p class="subtitle">Fill in all details to get started</p>
+
+        <form id="signup-form">
+
+            <!-- Account info -->
+            <p class="section-label">Account</p>
+            <label>Full Name</label>
+            <input type="text" id="signup-name" placeholder="Enter your full name" required>
+
+            <label>Email Address</label>
+            <input type="email" id="signup-email" placeholder="Enter your email" required>
+
+            <label>Password</label>
+            <input type="password" id="signup-password" placeholder="Minimum 6 characters" minlength="6" required>
+
+            <!-- Profile info -->
+            <hr class="section-divider">
+            <p class="section-label">Your Profile</p>
+
+            <label>Position Level</label>
+            <select id="signup-level" required>
+                <option value="" disabled selected>Select your position</option>
+                <option value="IGF & IYF Coordinator">IGF &amp; IYF Coordinator</option>
+                <option value="ICF Coordinator">ICF Coordinator</option>
+            </select>
+
+            <label>Chanting Category</label>
+            <select id="signup-chanting" required>
+               <option value="" disabled selected>Select chanting level</option>
+                <option value="Level-1">Level-1 (1–4 Rounds)</option>
+                <option value="Level-2">Level-2 (5–8 Rounds)</option>
+                <option value="Level-3">Level-3 (9–15 Rounds)</option>
+                <option value="Level-4">Level-4 (16 Rounds)</option>
+            </select>
+
+            <label>Current Exact Rounds</label>
+            <input type="number" id="signup-rounds" placeholder="e.g. 12" min="1" max="64" required>
+
+            <button type="submit" id="signup-btn" class="btn-success">
+                Create Account &amp; Start →
+            </button>
+        </form>
+
+        <div id="signup-msg" class="msg"></div>
+
+        <div class="login-link">
+            Already have an account? <a href="index.html">Login here</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDbRy8ZMJAWeTyZVnTphwRIei6jAckagjA",
+        authDomain: "sadhana-tracker-b65ff.firebaseapp.com",
+        projectId: "sadhana-tracker-b65ff",
+        storageBucket: "sadhana-tracker-b65ff.firebasestorage.app",
+        messagingSenderId: "926961218888",
+        appId: "1:926961218888:web:db8f12ef8256d13f036f7d"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db   = firebase.firestore();
+
+    document.getElementById('signup-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('signup-btn');
+        const msg = document.getElementById('signup-msg');
+
+        const name     = document.getElementById('signup-name').value.trim();
+        const email    = document.getElementById('signup-email').value.trim();
+        const pwd      = document.getElementById('signup-password').value;
+        const level    = document.getElementById('signup-level').value;
+        const chanting = document.getElementById('signup-chanting').value;
+        const rounds   = document.getElementById('signup-rounds').value;
+
+        btn.disabled    = true;
+        btn.textContent = 'Creating account…';
+        msg.style.display = 'none';
+
+        try {
+            // 1. Create Firebase Auth user
+            const cred = await auth.createUserWithEmailAndPassword(email, pwd);
+
+            // 2. Save complete profile — user goes straight to dashboard, no extra step needed
+            await db.collection('users').doc(cred.user.uid).set({
+                name:             name,
+                level:            level,
+                chantingCategory: chanting,
+                exactRounds:      rounds,
+                role:             'user'
+            });
+
+            // 3. Success — redirect to app
+            document.getElementById('signup-form').style.display = 'none';
+            msg.className     = 'msg success';
+            msg.style.display = 'block';
+            msg.innerHTML     = `✅ Account created! Welcome, ${name}!<br><small>Redirecting…</small>`;
+
+            setTimeout(() => { window.location.href = 'index.html'; }, 1600);
+
+        } catch (err) {
+            msg.className     = 'msg error';
+            msg.style.display = 'block';
+            msg.textContent   = err.message;
+            btn.disabled      = false;
+            btn.textContent   = 'Create Account & Start →';
+        }
+    };
+</script>
+</body>
+</html>
