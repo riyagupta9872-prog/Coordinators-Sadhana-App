@@ -1596,10 +1596,11 @@ async function loadUserNotifications() {
             .get();
 
         const count = snap.docs.length;
-        const btn = document.getElementById('notif-bell-btn');
-        if (btn) {
-            btn.classList.remove('hidden');
-            btn.innerHTML = count > 0 ? `🔔 <span style="background:#dc2626;color:white;border-radius:999px;padding:1px 6px;font-size:10px;">${count}</span>` : '🔔';
+        // Update sidebar badge
+        const badge = document.getElementById('sidebar-notif-badge');
+        if (badge) {
+            if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+            else { badge.classList.add('hidden'); }
         }
 
         if (count > 0) {
@@ -1661,10 +1662,47 @@ window._sendRoleNotification = async (userId, userName, newRole, category) => {
 window._initNotifications = () => {
     loadUserNotifications();
     checkSadhanaReminder();
-    // Check notification permission and show bell accordingly
-    const btn = document.getElementById('notif-bell-btn');
-    if (btn) {
-        btn.classList.remove('hidden');
-        if (Notification.permission === 'granted') btn.classList.add('granted');
+    const adminBtn = document.getElementById('admin-menu-btn');
+    if (adminBtn && (isAdmin() || isSuperAdmin())) adminBtn.classList.remove('hidden');
+};
+
+// USER SIDEBAR
+window.openUserSidebar = () => {
+    document.getElementById('user-sidebar').classList.add('open');
+    document.getElementById('sidebar-overlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (typeof userProfile !== 'undefined' && userProfile) {
+        const n = document.getElementById('sidebar-user-name');
+        const r = document.getElementById('sidebar-user-role');
+        if (n) n.textContent = userProfile.name || '';
+        if (r) r.textContent = userProfile.role === 'superAdmin' ? 'Super Admin' : userProfile.role === 'admin' ? 'Admin - ' + (userProfile.level||'') : userProfile.level || '';
     }
+    const bellIcon = document.getElementById('sidebar-bell-icon');
+    const bellLabel = document.getElementById('sidebar-bell-label');
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        if (bellIcon) bellIcon.textContent = '✅';
+        if (bellLabel) bellLabel.textContent = 'Notifications Enabled';
+    }
+};
+window.closeUserSidebar = () => {
+    document.getElementById('user-sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+    document.body.style.overflow = '';
+};
+window.openUserGuide = () => { document.getElementById('user-guide-modal').classList.remove('hidden'); };
+window.openAbout = () => { document.getElementById('about-modal').classList.remove('hidden'); };
+window.closeNotificationsPanel = () => { document.getElementById('notifications-modal').classList.add('hidden'); };
+window.openNotificationsPanel = async () => {
+    document.getElementById('notifications-modal').classList.remove('hidden');
+    if (!currentUser) return;
+    try {
+        const snap = await db.collection('notifications').where('userId','==',currentUser.uid).orderBy('createdAt','desc').limit(20).get();
+        const list = document.getElementById('notifications-list');
+        if (!list) return;
+        if (snap.empty) { list.innerHTML = '<p style="color:gray;text-align:center;padding:20px 0;font-size:13px;">No notifications yet</p>'; return; }
+        list.innerHTML = snap.docs.map(d => { const n=d.data(); const u=!n.read; return '<div style="padding:10px 12px;border-radius:8px;margin-bottom:6px;background:'+(u?'#eff6ff':'#f9fafb')+';border-left:3px solid '+(u?'#3b82f6':'#e5e7eb')+';"><div style="font-weight:600;font-size:13px;">'+( n.title||'')+'</div><div style="font-size:12px;color:#555;margin-top:2px;">'+(n.body||'')+'</div><div style="font-size:10px;color:gray;margin-top:4px;">'+(n.createdAt||'').slice(0,10)+'</div></div>'; }).join('');
+        snap.docs.forEach(d => { if (!d.data().read) d.ref.update({read:true}); });
+        const badge = document.getElementById('sidebar-notif-badge');
+        if (badge) badge.classList.add('hidden');
+    } catch(e) { console.warn(e); }
 };
