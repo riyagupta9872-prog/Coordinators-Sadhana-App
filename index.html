@@ -53,11 +53,136 @@
         .btn-notif-bell:hover { background: #f0f4f8; transform: none; }
         .btn-notif-bell.granted { color: #16a34a; border-color: #16a34a; }
 
-        /* Header */
-        .app-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; padding: 13px 16px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        /* ── NEW HEADER ── */
+        .app-header {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 0; padding: 10px 14px;
+            background: white; border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            position: relative;
+        }
         .header-name { font-weight: 700; font-size: 15px; color: var(--primary); }
         .header-role { font-size: 12px; color: var(--muted); margin-top: 1px; }
-        .header-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+        .header-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+
+        /* ── HAMBURGER (top-left user menu) ── */
+        .user-menu-btn {
+            width: 38px; height: 38px; min-width: 38px;
+            background: #f0f4f8; border: none; border-radius: 9px;
+            font-size: 18px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            margin: 0; padding: 0; flex-shrink: 0;
+            color: #1A3C5E; transition: background 0.2s;
+        }
+        .user-menu-btn:hover { background: #dde4ed; transform: none; }
+
+        /* ── ADMIN BTN top-left corner ── */
+        .admin-corner-btn {
+            width: 38px; height: 38px; min-width: 38px;
+            background: #1A3C5E; border: none; border-radius: 9px;
+            font-size: 16px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            margin: 0; padding: 0; flex-shrink: 0;
+            color: white; transition: background 0.2s;
+        }
+        .admin-corner-btn:hover { background: #2563a0; transform: none; }
+
+        /* ── USER SIDEBAR (left) ── */
+        .user-sidebar {
+            position: fixed; top: 0; left: -300px; width: 280px; height: 100vh;
+            background: white; z-index: 1001;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+            transition: left 0.28s cubic-bezier(.4,0,.2,1);
+            display: flex; flex-direction: column; overflow-y: auto;
+        }
+        .user-sidebar.open { left: 0; }
+        .user-sidebar-header {
+            background: linear-gradient(135deg, #1A3C5E 0%, #2563a0 100%);
+            padding: 24px 18px 18px; color: white;
+        }
+        .user-sidebar-name { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+        .user-sidebar-role { font-size: 12px; opacity: 0.8; }
+        .user-sidebar-close {
+            position: absolute; top: 12px; right: 12px;
+            background: rgba(255,255,255,0.2); border: none; border-radius: 6px;
+            color: white; width: 28px; height: 28px; font-size: 16px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            margin: 0; padding: 0;
+        }
+        .user-sidebar-close:hover { background: rgba(255,255,255,0.35); transform: none; }
+        .sidebar-nav { padding: 10px 0; flex: 1; }
+        .sidebar-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 13px 20px; cursor: pointer; font-size: 14px;
+            color: #333; transition: background 0.15s; border: none;
+            background: transparent; width: 100%; text-align: left; margin: 0;
+            border-radius: 0;
+        }
+        .sidebar-item:hover { background: #f0f4f8; transform: none; }
+        .sidebar-item-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+        .sidebar-item-label { font-weight: 500; }
+        .sidebar-item-badge {
+            margin-left: auto; background: #dc2626; color: white;
+            border-radius: 999px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+        }
+        .sidebar-divider { height: 1px; background: #f0f0f0; margin: 6px 16px; }
+        .sidebar-logout {
+            margin: 10px 16px 16px;
+            background: #fee2e2; color: #dc2626; border: none;
+            border-radius: 9px; padding: 11px; font-size: 14px;
+            font-weight: 600; cursor: pointer; width: calc(100% - 32px);
+        }
+        .sidebar-logout:hover { background: #fecaca; transform: none; }
+
+        /* ── SIDEBAR OVERLAY ── */
+        .sidebar-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            z-index: 1000; opacity: 0; pointer-events: none;
+            transition: opacity 0.28s; backdrop-filter: blur(3px);
+        }
+        .sidebar-overlay.open { opacity: 1; pointer-events: all; }
+
+        /* ── GITA BANNER ── */
+        .gita-banner {
+            position: relative; border-radius: 12px; overflow: hidden;
+            margin-bottom: 16px; min-height: 110px;
+            display: flex; align-items: center;
+        }
+        .gita-banner-bg {
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, #1A3C5E 0%, #7c3aed 100%);
+            z-index: 0;
+        }
+        .gita-banner-img {
+            position: absolute; inset: 0; object-fit: cover;
+            width: 100%; height: 100%; z-index: 1;
+            opacity: 0.18; filter: blur(2px);
+        }
+        .gita-banner-content {
+            position: relative; z-index: 2; padding: 14px 18px; color: white;
+        }
+        .gita-shloka {
+            font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+            line-height: 1.6; margin-bottom: 6px; font-style: italic;
+        }
+        .gita-translation {
+            font-size: 11.5px; opacity: 0.88; line-height: 1.5;
+        }
+        .gita-ref {
+            font-size: 10.5px; opacity: 0.7; margin-top: 5px; font-weight: 600;
+        }
+
+        /* ── USER GUIDE MODAL ── */
+        .guide-section { margin-bottom: 20px; }
+        .guide-section h3 { font-size: 14px; font-weight: 700; color: #1A3C5E; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #e0e7ff; }
+        .guide-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+        .guide-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+        .score-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+        .score-table th { background: #1A3C5E; color: white; padding: 7px 10px; text-align: left; }
+        .score-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }
+        .score-table tr:nth-child(even) td { background: #f9fafb; }
+        .score-pos { color: #16a34a; font-weight: 700; }
+        .score-neg { color: #dc2626; font-weight: 700; }
 
         /* Nav tabs */
         .nav-tabs { display: flex; gap: 7px; margin-bottom: 18px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
@@ -651,26 +776,83 @@
     <!-- ══ DASHBOARD ══ -->
     <section id="dashboard-section" class="hidden">
 
-        <div class="app-header">
-            <div>
+        <!-- ── SIDEBAR OVERLAY ── -->
+        <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeUserSidebar()"></div>
+
+        <!-- ── USER SIDEBAR ── -->
+        <div id="user-sidebar" class="user-sidebar">
+            <div class="user-sidebar-header">
+                <button class="user-sidebar-close" onclick="closeUserSidebar()">&#10005;</button>
+                <div class="user-sidebar-name" id="sidebar-user-name">—</div>
+                <div class="user-sidebar-role" id="sidebar-user-role">—</div>
+            </div>
+            <div class="sidebar-nav">
+                <button class="sidebar-item" onclick="closeUserSidebar(); openProfileEdit();">
+                    <span class="sidebar-item-icon">&#9999;&#65039;</span>
+                    <span class="sidebar-item-label">Edit Profile</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openPasswordModal();">
+                    <span class="sidebar-item-icon">&#128273;</span>
+                    <span class="sidebar-item-label">Change Password</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openNotificationsPanel();">
+                    <span class="sidebar-item-icon">&#128276;</span>
+                    <span class="sidebar-item-label">Notifications</span>
+                    <span class="sidebar-item-badge hidden" id="sidebar-notif-badge">0</span>
+                </button>
+                <div class="sidebar-divider"></div>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openUserGuide();">
+                    <span class="sidebar-item-icon">&#128214;</span>
+                    <span class="sidebar-item-label">User Guide</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openAbout();">
+                    <span class="sidebar-item-icon">&#8505;&#65039;</span>
+                    <span class="sidebar-item-label">About</span>
+                </button>
+                <div class="sidebar-divider"></div>
+                <button class="sidebar-item" onclick="closeUserSidebar(); requestNotificationPermission();">
+                    <span class="sidebar-item-icon" id="sidebar-bell-icon">&#128276;</span>
+                    <span class="sidebar-item-label" id="sidebar-bell-label">Enable Notifications</span>
+                </button>
+            </div>
+            <button class="sidebar-logout" onclick="document.getElementById('logout-btn').click()">
+                &#128682; Logout
+            </button>
+        </div>
+
+        <!-- ── APP HEADER ── -->
+        <div class="app-header" style="margin-bottom:12px;">
+            <!-- Left: user hamburger + admin btn -->
+            <div style="display:flex;gap:7px;align-items:center;">
+                <button class="user-menu-btn" onclick="openUserSidebar()" title="Menu">&#9776;</button>
+                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel">&#9881;</button>
+            </div>
+            <!-- Center: name + role -->
+            <div style="flex:1;padding:0 10px;">
                 <div class="header-name" id="user-display-name"></div>
                 <div class="header-role" id="user-role-display"></div>
             </div>
-            <div class="header-btns">
-                <button id="admin-menu-btn" class="btn-admin-header hidden" onclick="openAdminDrawer()">&#9776; Admin Panel</button>
-                <button id="notif-bell-btn" class="btn-notif-bell hidden" onclick="requestNotificationPermission()" title="Enable Notifications">
-                    &#128276;
-                </button>
-                <button onclick="openProfileEdit()"   class="btn-gray btn-sm">Edit Profile</button>
-                <button onclick="openPasswordModal()" class="btn-primary btn-sm">Change Password</button>
-                <button id="logout-btn"               class="btn-danger btn-sm">Logout</button>
+            <!-- Right: logout only -->
+            <button id="logout-btn" class="btn-danger btn-sm">Logout</button>
+        </div>
+
+        <!-- ── GITA BANNER ── -->
+        <div class="gita-banner" style="margin-bottom:14px;">
+            <div class="gita-banner-bg"></div>
+            <!-- Replace src below with your image URL -->
+            <img class="gita-banner-img" src="icons/icon-512.png" alt="" id="banner-bg-img">
+            <div class="gita-banner-content">
+                <div class="gita-shloka">युक्ताहारविहारस्य युक्तचेष्टस्य कर्मसु ।<br>युक्तस्वप्‍नावबोधस्य योगो भवति दु:खहा</div>
+                <div class="gita-translation">जो व्यक्ति अपने खान-पान, सोने, मनोरंजन और काम करने की आदतों में संयम बरतता है, वह योग प्रणाली का अभ्यास करके सभी भौतिक कष्टों को कम कर सकता है।</div>
+                <div class="gita-ref">— Bhagavad Gita 6.17</div>
             </div>
         </div>
 
-        <div class="nav-tabs">
-                <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
-                <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
-                <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
+        <!-- ── NAV TABS ── -->
+        <div class="nav-tabs" style="margin-bottom:16px;">
+            <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
+            <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
+            <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
         </div>
 
         <!-- SADHANA ENTRY -->
@@ -926,6 +1108,106 @@
         <div class="modal-title">✏️ Edit History</div>
         <div id="edit-history-content"></div>
         <button onclick="closeEditHistoryModal()" class="btn-gray" style="margin-top:12px;">Close</button>
+    </div>
+</div>
+
+<!-- ══ MODAL: Notifications Panel ══ -->
+<div id="notifications-modal" class="modal-overlay hidden">
+    <div class="modal-box sm">
+        <button class="modal-close" onclick="closeNotificationsPanel()">×</button>
+        <div class="modal-title">🔔 Notifications</div>
+        <div id="notifications-list" style="min-height:80px;">
+            <p style="color:var(--muted);text-align:center;font-size:13px;padding:20px 0;">No new notifications</p>
+        </div>
+        <div style="margin-top:14px;">
+            <button onclick="requestNotificationPermission()" class="btn-primary btn-sm" style="width:100%;padding:10px;">
+                Enable Push Notifications
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAL: User Guide ══ -->
+<div id="user-guide-modal" class="modal-overlay hidden">
+    <div class="modal-box md">
+        <button class="modal-close" onclick="document.getElementById('user-guide-modal').classList.add('hidden')">×</button>
+        <div class="modal-title">📖 How to Use Sadhana Tracker</div>
+        <div style="overflow-y:auto;max-height:70vh;">
+
+            <div class="guide-section">
+                <h3>🏠 What is this App?</h3>
+                <div class="guide-row"><span class="guide-icon">📿</span><span>This app helps you track your daily spiritual practices (Sadhana) — like chanting, reading, hearing, and service. Your coordinator can see your progress and guide you better.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>📝 How to Fill Daily Entry</h3>
+                <div class="guide-row"><span class="guide-icon">1️⃣</span><span>Tap <b>Daily Entry</b> tab at the top.</span></div>
+                <div class="guide-row"><span class="guide-icon">2️⃣</span><span>Select today's date from the dropdown.</span></div>
+                <div class="guide-row"><span class="guide-icon">3️⃣</span><span>Fill in what time you slept last night, woke up, and completed chanting.</span></div>
+                <div class="guide-row"><span class="guide-icon">4️⃣</span><span>Enter minutes spent in Reading, Hearing, and Service.</span></div>
+                <div class="guide-row"><span class="guide-icon">5️⃣</span><span>Tap <b>Submit Sadhana</b>. Done! ✅</span></div>
+                <div class="guide-row"><span class="guide-icon">⚠️</span><span>You can only submit once per day. Fill it every day for best results.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>📊 Scoring System — How are marks given?</h3>
+                <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Each day maximum score is <b>160 points</b>. Each week maximum is <b>1120 points</b>.</p>
+                <table class="score-table">
+                    <tr><th>Activity</th><th>Good Score</th><th>Bad Score</th></tr>
+                    <tr><td>🛌 Bed Time (before 11 PM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>⏰ Wake Up (before 5 AM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>📿 Chanting (before 8 AM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>📖 Reading (Pathan) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>🎧 Hearing (Shravan) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>🛠️ Service (Seva) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>😴 Day Sleep (less is better)</td><td class="score-pos">0</td><td class="score-neg">up to -20</td></tr>
+                    <tr><td>❌ Not Reported (NR) — missed day</td><td colspan="2" class="score-neg" style="text-align:center;">-35 (penalty)</td></tr>
+                </table>
+                <p style="font-size:11px;color:var(--muted);margin-top:8px;">* Senior Batch members have slightly different scoring. Times shown are guidelines — exact cutoffs are set by your coordinator.</p>
+            </div>
+
+            <div class="guide-section">
+                <h3>📈 My Reports</h3>
+                <div class="guide-row"><span class="guide-icon">📅</span><span>Shows your last 4 weeks. Each week shows daily scores, totals, and percentage.</span></div>
+                <div class="guide-row"><span class="guide-icon">💚</span><span>Green % = good week. <span style="color:#d97706;">Orange</span> = needs improvement. <span style="color:#dc2626;">Red</span> = missed many days.</span></div>
+                <div class="guide-row"><span class="guide-icon">📥</span><span>Download your full history as Excel file anytime.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>📉 My Progress</h3>
+                <div class="guide-row"><span class="guide-icon">📊</span><span>See your score trend as a chart — Daily, Weekly, or Monthly view.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>🔔 Notifications</h3>
+                <div class="guide-row"><span class="guide-icon">🔔</span><span>Tap the bell in the menu → Allow → You will get reminders if you forget to fill Sadhana for 2+ days.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>❓ Common Questions</h3>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>Can I fill yesterday's entry?</b> Yes, select yesterday's date from the dropdown.</span></div>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>I made a mistake. Can I edit?</b> Only your coordinator/admin can edit submitted entries.</span></div>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>What if I forget for many days?</b> Those days show as NR (Not Reported) with -35 penalty each.</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══ MODAL: About ══ -->
+<div id="about-modal" class="modal-overlay hidden">
+    <div class="modal-box sm">
+        <button class="modal-close" onclick="document.getElementById('about-modal').classList.add('hidden')">×</button>
+        <div class="modal-title">ℹ️ About</div>
+        <div style="text-align:center;padding:10px 0 20px;">
+            <img src="icons/icon-192.png" style="width:72px;height:72px;border-radius:50%;margin-bottom:12px;">
+            <div style="font-size:18px;font-weight:700;color:#1A3C5E;margin-bottom:4px;">Krishna Parayan</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-style:italic;">Let's Move to Supreme Lord</div>
+            <div style="font-size:13px;color:#444;line-height:1.7;text-align:left;background:#f9fafb;padding:14px;border-radius:10px;">
+                <b>Sadhana Tracker</b> is a tool built to help devotees track their daily spiritual practices and stay accountable to their Sadhana routine.<br><br>
+                Built with love and dedication for the Krishna Parayan community. 🙏<br><br>
+                <span style="color:var(--muted);font-size:12px;">For support, contact your category coordinator.</span>
+            </div>
+        </div>
     </div>
 </div>
 
