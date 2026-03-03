@@ -147,29 +147,36 @@
             position: relative; border-radius: 12px; overflow: hidden;
             margin-bottom: 16px; min-height: 110px;
             display: flex; align-items: center;
+            pointer-events: none;
         }
         .gita-banner-bg {
             position: absolute; inset: 0;
             background: linear-gradient(135deg, #1A3C5E 0%, #7c3aed 100%);
             z-index: 0;
+            pointer-events: none;
         }
         .gita-banner-img {
             position: absolute; inset: 0; object-fit: cover;
             width: 100%; height: 100%; z-index: 1;
             opacity: 0.18; filter: blur(2px);
+            pointer-events: none;
         }
         .gita-banner-content {
-            position: relative; z-index: 2; padding: 14px 18px; color: white;
+            position: relative; z-index: 2; padding: 16px 20px; color: white;
+            text-align: center; width: 100%;
+            pointer-events: none;
         }
         .gita-shloka {
             font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
-            line-height: 1.6; margin-bottom: 6px; font-style: italic;
+            line-height: 1.7; margin-bottom: 8px; font-style: italic;
         }
         .gita-translation {
-            font-size: 11.5px; opacity: 0.88; line-height: 1.5;
+            font-size: 11.5px; opacity: 0.88; line-height: 1.6;
+            max-width: 600px; margin: 0 auto;
         }
         .gita-ref {
-            font-size: 10.5px; opacity: 0.7; margin-top: 5px; font-weight: 600;
+            font-size: 10.5px; opacity: 0.75; margin-top: 6px; font-weight: 700;
+            letter-spacing: 0.5px;
         }
 
         /* ── USER GUIDE MODAL ── */
@@ -381,6 +388,13 @@
             background: rgba(0,0,0,0.5);
             z-index: 1000;
             backdrop-filter: blur(2px);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .drawer-overlay:not(.hidden) {
+            pointer-events: all;
+            opacity: 1;
         }
 
         .admin-drawer {
@@ -776,49 +790,7 @@
     <!-- ══ DASHBOARD ══ -->
     <section id="dashboard-section" class="hidden">
 
-        <!-- ── SIDEBAR OVERLAY ── -->
-        <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeUserSidebar()"></div>
 
-        <!-- ── USER SIDEBAR ── -->
-        <div id="user-sidebar" class="user-sidebar">
-            <div class="user-sidebar-header">
-                <button class="user-sidebar-close" onclick="closeUserSidebar()">&#10005;</button>
-                <div class="user-sidebar-name" id="sidebar-user-name">—</div>
-                <div class="user-sidebar-role" id="sidebar-user-role">—</div>
-            </div>
-            <div class="sidebar-nav">
-                <button class="sidebar-item" onclick="closeUserSidebar(); openProfileEdit();">
-                    <span class="sidebar-item-icon">&#9999;&#65039;</span>
-                    <span class="sidebar-item-label">Edit Profile</span>
-                </button>
-                <button class="sidebar-item" onclick="closeUserSidebar(); openPasswordModal();">
-                    <span class="sidebar-item-icon">&#128273;</span>
-                    <span class="sidebar-item-label">Change Password</span>
-                </button>
-                <button class="sidebar-item" onclick="closeUserSidebar(); openNotificationsPanel();">
-                    <span class="sidebar-item-icon">&#128276;</span>
-                    <span class="sidebar-item-label">Notifications</span>
-                    <span class="sidebar-item-badge hidden" id="sidebar-notif-badge">0</span>
-                </button>
-                <div class="sidebar-divider"></div>
-                <button class="sidebar-item" onclick="closeUserSidebar(); openUserGuide();">
-                    <span class="sidebar-item-icon">&#128214;</span>
-                    <span class="sidebar-item-label">User Guide</span>
-                </button>
-                <button class="sidebar-item" onclick="closeUserSidebar(); openAbout();">
-                    <span class="sidebar-item-icon">&#8505;&#65039;</span>
-                    <span class="sidebar-item-label">About</span>
-                </button>
-                <div class="sidebar-divider"></div>
-                <button class="sidebar-item" onclick="closeUserSidebar(); requestNotificationPermission();">
-                    <span class="sidebar-item-icon" id="sidebar-bell-icon">&#128276;</span>
-                    <span class="sidebar-item-label" id="sidebar-bell-label">Enable Notifications</span>
-                </button>
-            </div>
-            <button class="sidebar-logout" onclick="document.getElementById('logout-btn').click()">
-                &#128682; Logout
-            </button>
-        </div>
 
         <!-- ── APP HEADER ── -->
         <div class="app-header" style="margin-bottom:12px;">
@@ -837,7 +809,7 @@
         </div>
 
         <!-- ── GITA BANNER ── -->
-        <div class="gita-banner" style="margin-bottom:14px;">
+        <div class="gita-banner" style="margin-bottom:14px;justify-content:center;">
             <div class="gita-banner-bg"></div>
             <!-- Replace src below with your image URL -->
             <img class="gita-banner-img" src="icons/icon-512.png" alt="" id="banner-bg-img">
@@ -988,6 +960,50 @@
 
     </section>
 </div>
+
+<!-- ── USER SIDEBAR moved to body level ── -->
+        <div id="user-sidebar" class="user-sidebar">
+            <div class="user-sidebar-header">
+                <button class="user-sidebar-close" onclick="closeUserSidebar()">&#10005;</button>
+                <div class="user-sidebar-name" id="sidebar-user-name">—</div>
+                <div class="user-sidebar-role" id="sidebar-user-role">—</div>
+            </div>
+            <div class="sidebar-nav">
+                <button class="sidebar-item" onclick="closeUserSidebar(); openProfileEdit();">
+                    <span class="sidebar-item-icon">&#9999;&#65039;</span>
+                    <span class="sidebar-item-label">Edit Profile</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openPasswordModal();">
+                    <span class="sidebar-item-icon">&#128273;</span>
+                    <span class="sidebar-item-label">Change Password</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openNotificationsPanel();">
+                    <span class="sidebar-item-icon">&#128276;</span>
+                    <span class="sidebar-item-label">Notifications</span>
+                    <span class="sidebar-item-badge hidden" id="sidebar-notif-badge">0</span>
+                </button>
+                <div class="sidebar-divider"></div>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openUserGuide();">
+                    <span class="sidebar-item-icon">&#128214;</span>
+                    <span class="sidebar-item-label">User Guide</span>
+                </button>
+                <button class="sidebar-item" onclick="closeUserSidebar(); openAbout();">
+                    <span class="sidebar-item-icon">&#8505;&#65039;</span>
+                    <span class="sidebar-item-label">About</span>
+                </button>
+                <div class="sidebar-divider"></div>
+                <button class="sidebar-item" onclick="closeUserSidebar(); requestNotificationPermission();">
+                    <span class="sidebar-item-icon" id="sidebar-bell-icon">&#128276;</span>
+                    <span class="sidebar-item-label" id="sidebar-bell-label">Enable Notifications</span>
+                </button>
+            </div>
+            <button class="sidebar-logout" onclick="document.getElementById('logout-btn').click()">
+                &#128682; Logout
+            </button>
+        </div>
+
+<!-- ── SIDEBAR OVERLAY (body level) ── -->
+<div id="sidebar-overlay" class="sidebar-overlay" onclick="closeUserSidebar()"></div>
 
 <!-- ══════════════════════════════════════════════════════ -->
 <!-- MODAL: User History                                    -->
