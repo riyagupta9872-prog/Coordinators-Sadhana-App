@@ -1,9 +1,9 @@
 {
   "name": "Sadhana Tracker",
   "short_name": "Sadhana",
-  "description": "Daily Sadhana tracking for ISKCON devotees",
-  "start_url": "/Coordinators-Sadhana-Tracker/index.html",
-  "scope": "/Coordinators-Sadhana-Tracker/",
+  "description": "Daily Sadhana tracking for Krishna Parayan devotees",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1A3C5E",
@@ -16,7 +16,7 @@
       "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
