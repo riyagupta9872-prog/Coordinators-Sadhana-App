@@ -14,7 +14,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -144,38 +144,40 @@
 
         /* ── GITA BANNER ── */
         .gita-banner {
-            position: relative; border-radius: 12px; overflow: hidden;
-            margin-bottom: 16px; min-height: 110px;
+            position: relative; border-radius: 16px; overflow: hidden;
+            margin-bottom: 16px; min-height: 120px;
             display: flex; align-items: center;
             pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
         }
         .gita-banner-bg {
             position: absolute; inset: 0;
-            background: linear-gradient(135deg, #1A3C5E 0%, #7c3aed 100%);
-            z-index: 0;
+            background: linear-gradient(135deg, rgba(255,248,230,0.92) 0%, rgba(240,235,255,0.92) 100%);
+            z-index: 1;
             pointer-events: none;
         }
         .gita-banner-img {
             position: absolute; inset: 0; object-fit: cover;
-            width: 100%; height: 100%; z-index: 1;
-            opacity: 0.18; filter: blur(2px);
+            width: 100%; height: 100%; z-index: 0;
+            opacity: 0.22; filter: blur(1px);
             pointer-events: none;
         }
         .gita-banner-content {
-            position: relative; z-index: 2; padding: 16px 20px; color: white;
+            position: relative; z-index: 2; padding: 16px 20px;
             text-align: center; width: 100%;
             pointer-events: none;
         }
         .gita-shloka {
-            font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
-            line-height: 1.7; margin-bottom: 8px; font-style: italic;
+            font-size: 13.5px; font-weight: 800; letter-spacing: 0.2px;
+            line-height: 1.7; margin-bottom: 7px;
+            color: #1a1a2e;
         }
         .gita-translation {
-            font-size: 11.5px; opacity: 0.88; line-height: 1.6;
-            max-width: 600px; margin: 0 auto;
+            font-size: 12px; line-height: 1.6; color: #2d2d2d;
+            max-width: 600px; margin: 0 auto; font-weight: 500;
         }
         .gita-ref {
-            font-size: 10.5px; opacity: 0.75; margin-top: 6px; font-weight: 700;
+            font-size: 11px; color: #7c3aed; margin-top: 6px; font-weight: 700;
             letter-spacing: 0.5px;
         }
 
@@ -812,7 +814,7 @@
         <div class="gita-banner" style="margin-bottom:14px;justify-content:center;">
             <div class="gita-banner-bg"></div>
             <!-- Replace src below with your image URL -->
-            <img class="gita-banner-img" src="" alt="" id="banner-bg-img">
+            <img class="gita-banner-img" src="banner.png" alt="" id="banner-bg-img" onerror="this.style.display='none'">
             <div class="gita-banner-content">
                 <div class="gita-shloka">युक्ताहारविहारस्य युक्तचेष्टस्य कर्मसु ।<br>युक्तस्वप्‍नावबोधस्य योगो भवति दु:खहा</div>
                 <div class="gita-translation">जो व्यक्ति अपने खान-पान, सोने, मनोरंजन और काम करने की आदतों में संयम बरतता है, वह योग प्रणाली का अभ्यास करके सभी भौतिक कष्टों को कम कर सकता है।</div>
