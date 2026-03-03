@@ -1663,7 +1663,7 @@ async function checkSadhanaReminder() {
         if (missedDays.length >= 2 && Notification.permission === 'granted') {
             new Notification('🙏 Sadhana Reminder', {
                 body: `You haven't filled Sadhana for ${missedDays.length} days. Please submit now.`,
-                icon: './icons/icon-192.png'
+                icon: ''
             });
         }
 
@@ -1692,7 +1692,7 @@ window._initNotifications = () => {
     loadUserNotifications();
     checkSadhanaReminder();
     const adminBtn = document.getElementById('admin-menu-btn');
-    if (adminBtn && (isAdmin() || isSuperAdmin())) adminBtn.classList.remove('hidden');
+    if (adminBtn && isAnyAdmin()) adminBtn.classList.remove('hidden');
 };
 
 // USER SIDEBAR
