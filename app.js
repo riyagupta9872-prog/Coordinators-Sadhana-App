@@ -433,12 +433,22 @@ window.downloadMasterReport = async () => {
 // ═══════════════════════════════════════════════════════════
 // 5. AUTH
 // ═══════════════════════════════════════════════════════════
-auth.onAuthStateChanged(async (user) => {
+let _profileUnsub = null;
+auth.onAuthStateChanged((user) => {
+    // Unsubscribe previous profile listener
+    if (_profileUnsub) { _profileUnsub(); _profileUnsub = null; }
+
     if (user) {
         currentUser = user;
-        const docSnap = await db.collection('users').doc(user.uid).get();
-        if (docSnap.exists) {
+        let _dashboardInited = false;
+
+        // Real-time profile listener — updates instantly when admin changes role
+        _profileUnsub = db.collection('users').doc(user.uid).onSnapshot(docSnap => {
+            if (!docSnap.exists) { showSection('profile'); return; }
+
+            const prevLevel = userProfile ? userProfile.level : null;
             userProfile = docSnap.data();
+
             if (!userProfile.level) {
                 document.getElementById('profile-title').textContent    = 'Complete Your Profile';
                 document.getElementById('profile-subtitle').textContent = 'Please fill in your details to continue';
@@ -446,11 +456,18 @@ auth.onAuthStateChanged(async (user) => {
                 showSection('profile');
                 return;
             }
-            initDashboard();
-        } else {
-            showSection('profile');
-        }
+
+            if (!_dashboardInited) {
+                _dashboardInited = true;
+                initDashboard();
+            } else {
+                // Profile updated in background — refresh fields instantly
+                refreshFormFields();
+            }
+        });
     } else {
+        currentUser = null;
+        userProfile = null;
         showSection('auth');
     }
 });
@@ -466,6 +483,7 @@ function initDashboard() {
     switchTab('sadhana');
     if (window._initNotifications) window._initNotifications();
     setupDateSelect();
+    refreshFormFields();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -596,7 +614,7 @@ function loadReports(userId, containerId) {
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
 
                     return `<tr style="background:${rowBg};">
-                        <td style="font-weight:600;">${e.id.split('-').slice(1).join('/')}${editedBadge}</td>
+                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}</td>
                         <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
                         <td style="${isNR?'color:#b91c1c;':''}">${e.wakeupTime||'NR'}</td>${mkS(sc.wakeup??0)}
                         <td>${e.chantingTime||'NR'}</td>${mkS(sc.chanting??0)}
@@ -1366,14 +1384,25 @@ function setupDateSelect() {
     if (!s) return;
     s.innerHTML = '';
     for (let i=0;i<2;i++) {
+        const ds = localDateStr(i);
         const opt = document.createElement('option');
-        opt.value = opt.textContent = localDateStr(i);
+        opt.value = ds;
+        const parts = ds.split('-');
+        opt.textContent = parts[2] + '/' + parts[1] + '/' + parts[0] + (i===0 ? ' (Today)' : ' (Yesterday)');
         s.appendChild(opt);
     }
-    const notesArea = document.getElementById('notes-area');
-    if (notesArea) notesArea.classList.toggle('hidden', userProfile?.level !== 'Senior Batch');
+    refreshFormFields();
 }
 
+
+// Show/hide Notes Revision based on Senior Batch level
+function refreshFormFields() {
+    const notesArea   = document.getElementById('notes-area');
+    const serviceArea = document.getElementById('service-area');
+    const isSB = userProfile && userProfile.level === 'Senior Batch';
+    if (notesArea)   notesArea.classList.toggle('hidden', !isSB);
+    if (serviceArea) serviceArea.classList.remove('hidden');
+}
 document.getElementById('profile-form').onsubmit = async (e) => {
     e.preventDefault();
     const data = {
