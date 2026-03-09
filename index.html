@@ -747,6 +747,20 @@
         }
 
     </style>
+<script>
+function guideTab(tab) {
+    ['intro','form','level1','level2','level3','level4','reports','admin','faq'].forEach(function(t) {
+        var p = document.getElementById('gpanel-'+t);
+        var b = document.getElementById('gtab-'+t);
+        if (p) p.classList.add('hidden');
+        if (b) b.classList.remove('active');
+    });
+    var panel = document.getElementById('gpanel-'+tab);
+    var btn   = document.getElementById('gtab-'+tab);
+    if (panel) panel.classList.remove('hidden');
+    if (btn)   btn.classList.add('active');
+}
+</script>
 </head>
 <body>
 <div class="container">
