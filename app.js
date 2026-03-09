@@ -1762,12 +1762,14 @@ function setupDateSelect() {
     const s = document.getElementById('sadhana-date');
     if (!s) return;
     s.innerHTML = '';
-    for (let i=0;i<2;i++) {
+    for (let i=0;i<3;i++) {
         const ds = localDateStr(i);
         const opt = document.createElement('option');
         opt.value = ds;
         const parts = ds.split('-');
+        // OLD LINE (restore after 1 week):
         opt.textContent = parts[2] + '/' + parts[1] + '/' + parts[0] + (i===0 ? ' (Today)' : ' (Yesterday)');
+        opt.textContent = parts[2] + '/' + parts[1] + '/' + parts[0] + (i===0 ? ' (Today)' : i===1 ? ' (Yesterday)' : ' (2 days ago)');
         s.appendChild(opt);
     }
     refreshFormFields();
