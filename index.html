@@ -157,9 +157,9 @@
             pointer-events: none;
         }
         .gita-banner-img {
-            position: absolute; inset: 0; object-fit: cover;object-position: center 40%;
+            position: absolute; inset: 0; object-fit: cover;
             width: 100%; height: 100%; z-index: 0;
-            opacity: 0.90; filter: blur(1.5px);
+            opacity: 0.45; filter: blur(0px);
             pointer-events: none;
         }
         .gita-banner-content {
@@ -192,17 +192,6 @@
         .score-table tr:nth-child(even) td { background: #f9fafb; }
         .score-pos { color: #16a34a; font-weight: 700; }
         .score-neg { color: #dc2626; font-weight: 700; }
-        .guide-tab { background:#e9ecef;color:#555;padding:6px 12px;border-radius:16px;font-size:12px;font-weight:600;border:none;cursor:pointer;white-space:nowrap;flex-shrink:0; }
-        .guide-tab.active { background:#1a237e;color:#fff; }
-        .guide-panel { display:block; }
-        .guide-panel.hidden { display:none !important; }
-        .guide-level-header { padding:10px 14px;border-radius:10px;margin-bottom:12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px; }
-        .guide-info-box { background:#E8EAF6;border-left:4px solid #1a237e;border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#333;line-height:1.6; }
-        .guide-warn-box { background:#FFF8E1;border-left:4px solid #F59E0B;border-radius:0 8px 8px 0;padding:10px 14px;font-size:12px;color:#333;line-height:1.7; }
-        .guide-formula-box { background:#1a237e;color:#fff;border-radius:10px;padding:12px 16px;font-size:12px;font-weight:600;text-align:center;margin:8px 0; }
-        .faq-item { margin-bottom:14px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden; }
-        .faq-q { background:#f0f4ff;padding:9px 14px;font-size:13px;font-weight:700;color:#1a237e; }
-        .faq-a { padding:9px 14px;font-size:12px;color:#444;line-height:1.6; }
 
         /* Nav tabs */
         .nav-tabs { display: flex; gap: 7px; margin-bottom: 18px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
@@ -747,48 +736,6 @@
         }
 
     </style>
-<script>
-function guideTab(tab) {
-    ['intro','form','level1','level2','level3','level4','reports','admin','faq'].forEach(function(t) {
-        var p = document.getElementById('gpanel-'+t);
-        var b = document.getElementById('gtab-'+t);
-        if (p) p.classList.add('hidden');
-        if (b) b.classList.remove('active');
-    });
-    var panel = document.getElementById('gpanel-'+tab);
-    var btn   = document.getElementById('gtab-'+tab);
-    if (panel) panel.classList.remove('hidden');
-    if (btn)   btn.classList.add('active');
-}
-
-function openUserGuide() {
-    // Open guide and jump to user's current level tab
-    document.getElementById('user-guide-modal').classList.remove('hidden');
-    var level = (window.userProfile && window.userProfile.level) || 'Level-1';
-    var tabMap = {'Level-1':'level1','Level-2':'level2','Level-3':'level3','Level-4':'level4'};
-    var tab = tabMap[level] || 'intro';
-    guideTab(tab);
-    // Highlight user's level tab with a glow
-    highlightUserLevelTab(level);
-}
-
-function highlightUserLevelTab(level) {
-    var tabMap = {'Level-1':'level1','Level-2':'level2','Level-3':'level3','Level-4':'level4'};
-    var activeTab = tabMap[level];
-    ['level1','level2','level3','level4'].forEach(function(t) {
-        var b = document.getElementById('gtab-'+t);
-        if (!b) return;
-        if (t === activeTab) {
-            b.style.outline = '2px solid gold';
-            b.style.outlineOffset = '2px';
-            b.title = 'Your current level';
-        } else {
-            b.style.outline = '';
-            b.title = '';
-        }
-    });
-}
-</script>
 </head>
 <body>
 <div class="container">
@@ -818,39 +765,24 @@ function highlightUserLevelTab(level) {
             <label class="form-label">Full Name</label>
             <input type="text" id="profile-name" placeholder="Full Name" required>
 
-              <label class="form-label">Chanting Category</label>
+            <label class="form-label">Position Level</label>
+            <select id="profile-level" required>
+                <option value="" disabled selected>Select your position</option>
+                <option value="IGF & IYF Coordinator">IGF &amp; IYF Coordinator</option>
+                <option value="ICF Coordinator">ICF Coordinator</option>
+            </select>
+
+            <label class="form-label">Chanting Category</label>
             <select id="profile-chanting" required>
-                <option value="" disabled selected>Select chanting category</option>
-                <option value="0-4 rounds">0-4 Rounds</option>
-                <option value="4-8 rounds">4-8 Rounds</option>
-                <option value="8-16 rounds">8-16 Rounds</option>
-                <option value="16+ rounds">16+ Rounds</option>
+                <option value="" disabled selected>Select chanting level</option>
+                <option value="Level-1">Level-1 (1–4 Rounds)</option>
+                <option value="Level-2">Level-2 (5–8 Rounds)</option>
+                <option value="Level-3">Level-3 (9–15 Rounds)</option>
+                <option value="Level-4">Level-4 (16 Rounds)</option>
             </select>
 
             <label class="form-label">Current Exact Rounds</label>
             <input type="number" id="profile-exact-rounds" placeholder="e.g. 12" required>
-
-            <!-- Level admin set karega — hidden from user -->
-            <!-- Instrument / Activity -->
-            <label class="form-label" id="instrument-label">Instrument / Activity <span style="color:#aaa;font-weight:400;font-size:12px;">(optional)</span></label>
-            <select id="profile-instrument" required>
-                <option value="" disabled selected>Select your instrument / activity</option>
-                <!-- Options populated by JS based on level -->
-            </select>
-
-            <label class="form-label">Department</label>
-            <select id="profile-dept" required onchange="populateDeptTeams('profile-team', this.value)">
-                <option value="" disabled selected>Select department</option>
-                <option value="IGF">IGF</option>
-                <option value="IYF">IYF</option>
-                <option value="ICF_MTG">ICF_MTG</option>
-                <option value="ICF_PRJI">ICF_PRJI</option>
-            </select>
-
-            <label class="form-label">Team</label>
-            <select id="profile-team" required>
-                <option value="" disabled selected>Select team (choose dept first)</option>
-            </select>
 
             <button type="submit" class="btn-success" style="margin-top:16px;">Save &amp; Continue</button>
             <button type="button" onclick="showSection('dashboard')" id="cancel-edit" class="btn-gray hidden">Cancel</button>
@@ -913,53 +845,23 @@ function highlightUserLevelTab(level) {
                     <label class="form-label">Chanting Completed By</label>
                     <input type="time" id="chanting-time" required>
 
-                    <label class="form-label">📖 Pathan (Reading) — Minutes</label>
+                    <label class="form-label">Reading (Pathan) — Minutes</label>
                     <input type="number" id="reading-mins" value="0" min="0" required>
 
-                    <label class="form-label">🎧 Hearing (Shravan) — Minutes</label>
+                    <label class="form-label">Hearing (Shravan) — Minutes</label>
                     <input type="number" id="hearing-mins" value="0" min="0" required>
 
-                    <!-- Instrument — label auto-updates from profile -->
-                    <div id="instrument-area">
-                        <label class="form-label" id="instrument-form-label">🎵 Instrument — Minutes</label>
-                        <input type="number" id="instrument-mins" value="0" min="0">
-                    </div>
-
-                    <!-- Service — all levels, daily minutes + optional text -->
                     <div id="service-area">
-                        <label class="form-label">🛠️ Service (Seva) — Minutes</label>
-                        <input type="number" id="service-mins" value="0" min="0">
-                        <input type="text" id="service-text" placeholder="Aaj kya seva ki? (optional — sirf Excel mein aayega)" style="margin-top:5px;font-size:13px;color:#555;">
+                        <label class="form-label">Service (Seva) — Minutes</label>
+                        <input type="number" id="service-mins" value="0" min="0" required>
                     </div>
-
-                    <!-- Notes Revision — L4 only -->
                     <div id="notes-area" class="hidden">
-                        <label class="form-label">📝 Notes Revision — Minutes</label>
+                        <label class="form-label">Notes Revision — Minutes</label>
                         <input type="number" id="notes-mins" value="0" min="0">
                     </div>
 
-                    <label class="form-label">😴 Day Sleep — Minutes</label>
+                    <label class="form-label">Day Sleep — Minutes</label>
                     <input type="number" id="day-sleep-minutes" value="0" required>
-
-                    <!-- Sunday Bonus — shown only on Sunday -->
-                    <div id="sunday-bonus-area" class="hidden">
-                        <div style="background:#fef3c7;border-radius:10px;padding:12px 14px;margin-top:10px;">
-                            <div style="font-weight:700;font-size:13px;color:#92400e;margin-bottom:10px;">🌟 Sunday Bonus</div>
-                            <div id="dress-fields">
-                                <!-- Populated by JS based on dept -->
-                            </div>
-                            <label class="form-label">🔱 Tilak</label>
-                            <select id="tilak-field">
-                                <option value="yes">Yes ✅</option>
-                                <option value="no">No ❌</option>
-                            </select>
-                            <label class="form-label">📿 Mala</label>
-                            <select id="mala-field">
-                                <option value="yes">Yes ✅</option>
-                                <option value="no">No ❌</option>
-                            </select>
-                        </div>
-                    </div>
 
                     <button type="submit" class="btn-success" style="margin-top:16px;">Submit Sadhana</button>
                 </form>
@@ -1013,11 +915,10 @@ function highlightUserLevelTab(level) {
                         <div class="admin-search-bar">
                             <input type="text" id="admin-search-input" placeholder="Search devotee by name..." oninput="filterAdminUsers()" style="margin:0;flex:1;">
                             <select id="admin-category-filter" onchange="filterAdminUsers()" style="margin:0;width:auto;flex-shrink:0;padding:10px 12px;font-size:13px;">
-                                <option value="">All Depts</option>
-                                <option value="IGF">IGF</option>
-                                <option value="IYF">IYF</option>
-                                <option value="ICF_MTG">ICF_MTG</option>
-                                <option value="ICF_PRJI">ICF_PRJI</option>
+                                <option value="">All Categories</option>
+                                <option value="Senior Batch">Senior Batch</option>
+                                <option value="IGF &amp; IYF Coordinator">IGF &amp; IYF</option>
+                                <option value="ICF Coordinator">ICF</option>
                             </select>
                         </div>
                         <div id="admin-users-list"></div>
@@ -1248,623 +1149,65 @@ function highlightUserLevelTab(level) {
 <div id="user-guide-modal" class="modal-overlay hidden">
     <div class="modal-box md">
         <button class="modal-close" onclick="document.getElementById('user-guide-modal').classList.add('hidden')">×</button>
-        <div class="modal-title">📖 Sadhana Tracker — User Guide</div>
-        <div style="overflow-y:auto;max-height:75vh;padding:0 4px;">
+        <div class="modal-title">📖 How to Use Sadhana Tracker</div>
+        <div style="overflow-y:auto;max-height:70vh;">
 
-        <!-- Tab Navigation -->
-        <div style="display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:16px;border-bottom:2px solid #e5e7eb;padding-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
-            <button onclick="guideTab('intro')"    id="gtab-intro"    class="guide-tab active">🏠 Intro</button>
-            <button onclick="guideTab('form')"     id="gtab-form"     class="guide-tab">📝 Form</button>
-            <button onclick="guideTab('level1')"   id="gtab-level1"   class="guide-tab" style="color:#1565C0;">L-1</button>
-            <button onclick="guideTab('level2')"   id="gtab-level2"   class="guide-tab" style="color:#2E7D32;">L-2</button>
-            <button onclick="guideTab('level3')"   id="gtab-level3"   class="guide-tab" style="color:#6A1B9A;">L-3</button>
-            <button onclick="guideTab('level4')"   id="gtab-level4"   class="guide-tab" style="color:#B71C1C;">L-4</button>
-            <button onclick="guideTab('reports')"  id="gtab-reports"  class="guide-tab">📊 Reports</button>
-            <button onclick="guideTab('admin')"    id="gtab-admin"    class="guide-tab">⚙️ Admin</button>
-            <button onclick="guideTab('faq')"      id="gtab-faq"      class="guide-tab">❓ FAQ</button>
-        </div>
+            <div class="guide-section">
+                <h3>🏠 What is this App?</h3>
+                <div class="guide-row"><span class="guide-icon">📿</span><span>This app helps you track your daily spiritual practices (Sadhana) — like chanting, reading, hearing, and service. Your coordinator can see your progress and guide you better.</span></div>
+            </div>
 
-        <!-- INTRO -->
-        <div id="gpanel-intro" class="guide-panel">
-            <div class="guide-hero" style="background:linear-gradient(135deg,#1a237e,#4a148c);color:#fff;border-radius:14px;padding:20px;text-align:center;margin-bottom:16px;">
-                <div style="font-size:36px;margin-bottom:8px;">🙏</div>
-                <div style="font-size:18px;font-weight:700;margin-bottom:4px;">Sadhana Tracker</div>
-                <div style="font-size:12px;opacity:0.85;font-style:italic;">Dedicated to Guru and Gauranga</div>
-            </div>
             <div class="guide-section">
-                <h3>What does this app track?</h3>
-                <div class="guide-row"><span class="guide-icon">🌙</span><span>Sleep (Nidra) time</span></div>
-                <div class="guide-row"><span class="guide-icon">🌅</span><span>Wake-up time</span></div>
-                <div class="guide-row"><span class="guide-icon">📿</span><span>Chanting (Japa) time</span></div>
-                <div class="guide-row"><span class="guide-icon">📖</span><span>Reading (Pathan) minutes</span></div>
-                <div class="guide-row"><span class="guide-icon">🎧</span><span>Hearing (class/lecture) minutes</span></div>
-                <div class="guide-row"><span class="guide-icon">🎵</span><span>Instrument / Activity minutes</span></div>
-                <div class="guide-row"><span class="guide-icon">😴</span><span>Day sleep duration</span></div>
-                <div class="guide-row"><span class="guide-icon">🛠️</span><span>Service (Seva) — weekly pool</span></div>
-                <div class="guide-row"><span class="guide-icon">📝</span><span>Notes Revision — Level-4 only</span></div>
-                <div class="guide-row"><span class="guide-icon">👗</span><span>Vaishnav Dress / Tilak / Mala — Sundays</span></div>
+                <h3>📝 How to Fill Daily Entry</h3>
+                <div class="guide-row"><span class="guide-icon">1️⃣</span><span>Tap <b>Daily Entry</b> tab at the top.</span></div>
+                <div class="guide-row"><span class="guide-icon">2️⃣</span><span>Select today's date from the dropdown.</span></div>
+                <div class="guide-row"><span class="guide-icon">3️⃣</span><span>Fill in what time you slept last night, woke up, and completed chanting.</span></div>
+                <div class="guide-row"><span class="guide-icon">4️⃣</span><span>Enter minutes spent in Reading, Hearing, and Service.</span></div>
+                <div class="guide-row"><span class="guide-icon">5️⃣</span><span>Tap <b>Submit Sadhana</b>. Done! ✅</span></div>
+                <div class="guide-row"><span class="guide-icon">⚠️</span><span>You can only submit once per day. Fill it every day for best results.</span></div>
             </div>
+
             <div class="guide-section">
-                <h3>Four Devotee Levels</h3>
-                <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Your level is assigned by your Admin — it determines your scoring rules and daily maximum.</p>
+                <h3>📊 Scoring System — How are marks given?</h3>
+                <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Each day maximum score is <b>160 points</b>. Each week maximum is <b>1120 points</b>.</p>
                 <table class="score-table">
-                    <tr><th>Level</th><th>Daily Max</th><th>Weekly Max</th></tr>
-                    <tr><td style="color:#1565C0;font-weight:700;">Level-1</td><td>105 pts</td><td>760 pts</td></tr>
-                    <tr><td style="color:#2E7D32;font-weight:700;">Level-2</td><td>110 pts</td><td>795 pts</td></tr>
-                    <tr><td style="color:#6A1B9A;font-weight:700;">Level-3</td><td>115 pts</td><td>830 pts</td></tr>
-                    <tr><td style="color:#B71C1C;font-weight:700;">Level-4</td><td>140 pts</td><td>1005 pts</td></tr>
+                    <tr><th>Activity</th><th>Good Score</th><th>Bad Score</th></tr>
+                    <tr><td>🛌 Bed Time (before 11 PM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>⏰ Wake Up (before 5 AM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>📿 Chanting (before 8 AM)</td><td class="score-pos">+20</td><td class="score-neg">-5</td></tr>
+                    <tr><td>📖 Reading (Pathan) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>🎧 Hearing (Shravan) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>🛠️ Service (Seva) 30+ mins</td><td class="score-pos">+20</td><td class="score-neg">-5 to 0</td></tr>
+                    <tr><td>😴 Day Sleep (less is better)</td><td class="score-pos">0</td><td class="score-neg">up to -20</td></tr>
+                    <tr><td>❌ Not Reported (NR) — missed day</td><td colspan="2" class="score-neg" style="text-align:center;">-35 (penalty)</td></tr>
                 </table>
-                <div class="guide-info-box" style="margin-top:10px;">
-                    📌 New devotees start at <b>Level-1</b> by default.<br>
-                    📌 Level is changed by Team Leader / Dept Admin / Super Admin.
-                </div>
+                <p style="font-size:11px;color:var(--muted);margin-top:8px;">* Senior Batch members have slightly different scoring. Times shown are guidelines — exact cutoffs are set by your coordinator.</p>
             </div>
-            <div class="guide-section">
-                <h3>📐 How Weekly % is Calculated</h3>
-                <div class="guide-formula-box">
-                    Weekly % = Total Score ÷ (Daily Max × Submitted Days) × 100
-                </div>
-                <p style="font-size:12px;color:var(--muted);margin-top:8px;">Only submitted days count in the denominator — future days are excluded. This is the <b>Fair Denominator</b> system.</p>
-            </div>
-        </div>
 
-        <!-- DAILY FORM -->
-        <div id="gpanel-form" class="guide-panel hidden">
             <div class="guide-section">
-                <h3>📝 How to Fill Daily Sadhana</h3>
-                <div class="guide-row"><span class="guide-icon">1️⃣</span><span>Go to <b>Daily Entry</b> tab on the dashboard.</span></div>
-                <div class="guide-row"><span class="guide-icon">2️⃣</span><span>Select the date (today or a missed past date).</span></div>
-                <div class="guide-row"><span class="guide-icon">3️⃣</span><span>Fill in all the fields listed below.</span></div>
-                <div class="guide-row"><span class="guide-icon">4️⃣</span><span>Tap <b>Submit Sadhana</b> ✅</span></div>
+                <h3>📈 My Reports</h3>
+                <div class="guide-row"><span class="guide-icon">📅</span><span>Shows your last 4 weeks. Each week shows daily scores, totals, and percentage.</span></div>
+                <div class="guide-row"><span class="guide-icon">💚</span><span>Green % = good week. <span style="color:#d97706;">Orange</span> = needs improvement. <span style="color:#dc2626;">Red</span> = missed many days.</span></div>
+                <div class="guide-row"><span class="guide-icon">📥</span><span>Download your full history as Excel file anytime.</span></div>
             </div>
+
             <div class="guide-section">
-                <h3>📋 Field Reference</h3>
-                <table class="score-table">
-                    <tr><th>Field</th><th>What to Enter</th></tr>
-                    <tr><td>🌙 Bed Time</td><td>Time you slept last night (e.g. 22:30)</td></tr>
-                    <tr><td>🌅 Wake-up</td><td>Time you woke up (e.g. 05:30)</td></tr>
-                    <tr><td>📿 Chanting Time</td><td>Time you finished japa (e.g. 07:00)</td></tr>
-                    <tr><td>📖 Pathan (min)</td><td>Minutes reading scripture</td></tr>
-                    <tr><td>🎧 Hearing (min)</td><td>Minutes of class/lecture</td></tr>
-                    <tr><td>🎵 Instrument (min)</td><td>Minutes on your activity</td></tr>
-                    <tr><td>😴 Day Sleep (min)</td><td>Total daytime rest in minutes</td></tr>
-                    <tr><td>🛠️ Seva (min)</td><td>Minutes of service done</td></tr>
-                    <tr><td>📝 Notes Revision</td><td>Level-4 only — minutes revising notes</td></tr>
-                    <tr><td>👗 Dress / Tilak / Mala</td><td>Sundays only — Yes or No</td></tr>
-                </table>
+                <h3>📉 My Progress</h3>
+                <div class="guide-row"><span class="guide-icon">📊</span><span>See your score trend as a chart — Daily, Weekly, or Monthly view.</span></div>
             </div>
+
             <div class="guide-section">
-                <div class="guide-warn-box">
-                    ⚠️ <b>NR (Not Reported)</b> = −30 penalty if you miss a day.<br>
-                    ✅ You can fill past dates anytime.<br>
-                    👗 Dress / Tilak / Mala fields appear <b>only on Sundays</b>.<br>
-                    🛠️ Service marks are <b>weekly pool</b> — no daily marks shown.
-                </div>
+                <h3>🔔 Notifications</h3>
+                <div class="guide-row"><span class="guide-icon">🔔</span><span>Tap the bell in the menu → Allow → You will get reminders if you forget to fill Sadhana for 2+ days.</span></div>
+            </div>
+
+            <div class="guide-section">
+                <h3>❓ Common Questions</h3>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>Can I fill yesterday's entry?</b> Yes, select yesterday's date from the dropdown.</span></div>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>I made a mistake. Can I edit?</b> Only your coordinator/admin can edit submitted entries.</span></div>
+                <div class="guide-row"><span class="guide-icon">Q</span><span><b>What if I forget for many days?</b> Those days show as NR (Not Reported) with -35 penalty each.</span></div>
             </div>
         </div>
-
-        <!-- LEVEL 1 -->
-        <div id="gpanel-level1" class="guide-panel hidden">
-            <div class="guide-level-header" style="background:#E3F2FD;border-left:5px solid #1565C0;">
-                <span style="color:#1565C0;font-size:18px;font-weight:800;">Level-1</span>
-                <span style="font-size:12px;color:#555;margin-left:10px;">Daily Max: 105 pts &nbsp;|&nbsp; Weekly: 760 pts</span>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">🌙 Nidra (Sleep Time)</h3>
-                <table class="score-table">
-                    <tr><th>Bed Time</th><th>Points</th></tr>
-                    <tr><td>≤ 11:00 PM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>11:01 – 11:05 PM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>11:06 – 11:10 PM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:11 – 11:15 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>11:16 – 11:20 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>11:21 – 11:25 PM</td><td>0</td></tr>
-                    <tr><td>After 11:25 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">🌅 Wake-up Time</h3>
-                <table class="score-table">
-                    <tr><th>Wake-up Time</th><th>Points</th></tr>
-                    <tr><td>≤ 6:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>6:01 – 6:05 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>6:06 – 6:10 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>6:11 – 6:15 AM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>6:16 – 6:20 AM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>6:21 – 6:25 AM</td><td>0</td></tr>
-                    <tr><td>After 6:25 AM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">📿 Chanting (Japa) Time</h3>
-                <table class="score-table">
-                    <tr><th>Finished Chanting By</th><th>Points</th></tr>
-                    <tr><td>≤ 9:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>9:01 – 9:30 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>9:31 – 11:00 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:01 AM – 2:30 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>2:31 – 5:00 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:01 – 7:00 PM</td><td>0</td></tr>
-                    <tr><td>After 7:00 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">📖 Pathan / Hearing — Best of Two (Max 20)</h3>
-                <div class="guide-info-box">Only the <b>better score</b> between Pathan and Hearing counts. Negative scores are floored to 0.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>5–9 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>&lt; 5 min</td><td>0 (floor)</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">😴 Day Sleep</h3>
-                <table class="score-table">
-                    <tr><th>Duration</th><th>Points</th></tr>
-                    <tr><td>≤ 90 minutes</td><td class="score-pos">+10</td></tr>
-                    <tr><td>&gt; 90 minutes</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">🛠️ Service Pool (Weekly, Saturday check)</h3>
-                <table class="score-table">
-                    <tr><th>Weekly Seva Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 60 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>50–59 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>40–49 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>30–39 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>20–29 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>10–19 min</td><td>0</td></tr>
-                    <tr><td>&lt; 10 min</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">🎵 Instrument Bonus (Daily)</h3>
-                <table class="score-table">
-                    <tr><th>Minutes</th><th>Bonus</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+1</td></tr>
-                    <tr><td>&lt; 10 min</td><td>0</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#1565C0;">👗 Vaishnav Dress / Tilak / Mala (Sunday Bonus)</h3>
-                <table class="score-table">
-                    <tr><th>All three: Yes</th><td class="score-pos">+5</td></tr>
-                    <tr><th>Any missing</th><td>0 (no penalty)</td></tr>
-                </table>
-                <div class="guide-info-box" style="margin-top:8px;">IGF/ICF_MTG: Gopi Dress + Blouse &nbsp;|&nbsp; IYF/ICF_PRJI: Dhoti + Kurta</div>
-            </div>
-        </div>
-
-        <!-- LEVEL 2 -->
-        <div id="gpanel-level2" class="guide-panel hidden">
-            <div class="guide-level-header" style="background:#E8F5E9;border-left:5px solid #2E7D32;">
-                <span style="color:#2E7D32;font-size:18px;font-weight:800;">Level-2</span>
-                <span style="font-size:12px;color:#555;margin-left:10px;">Daily Max: 110 pts &nbsp;|&nbsp; Weekly: 795 pts</span>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">🌙 Nidra — Same as Level-1</h3>
-                <table class="score-table">
-                    <tr><th>Bed Time</th><th>Points</th></tr>
-                    <tr><td>≤ 11:00 PM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>11:01 – 11:05 PM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>11:06 – 11:10 PM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:11 – 11:15 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>11:16 – 11:20 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>11:21 – 11:25 PM</td><td>0</td></tr>
-                    <tr><td>After 11:25 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">🌅 Wake-up — Same as Level-1</h3>
-                <table class="score-table">
-                    <tr><th>Wake-up Time</th><th>Points</th></tr>
-                    <tr><td>≤ 6:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>6:01 – 6:05 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>6:06 – 6:10 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>6:11 – 6:15 AM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>6:16 – 6:20 AM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>6:21 – 6:25 AM</td><td>0</td></tr>
-                    <tr><td>After 6:25 AM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">📿 Chanting — Same as Level-1</h3>
-                <table class="score-table">
-                    <tr><th>Finished Chanting By</th><th>Points</th></tr>
-                    <tr><td>≤ 9:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>9:01 – 9:30 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>9:31 – 11:00 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:01 AM – 2:30 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>2:31 – 5:00 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:01 – 7:00 PM</td><td>0</td></tr>
-                    <tr><td>After 7:00 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">📖 Pathan / Hearing — Best of Two (Max 25)</h3>
-                <div class="guide-info-box">Only the <b>better score</b> between Pathan and Hearing counts. Negative clamped to 0. Max increased to 25 (was 20 at L-1).</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 25 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>20–24 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>5–9 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>&lt; 5 min</td><td>0 (floor)</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">😴 Day Sleep — Same as Level-1</h3>
-                <table class="score-table">
-                    <tr><th>Duration</th><th>Points</th></tr>
-                    <tr><td>≤ 90 minutes</td><td class="score-pos">+10</td></tr>
-                    <tr><td>&gt; 90 minutes</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">🛠️ Service Pool — Weekly (Target: 90 min)</h3>
-                <table class="score-table">
-                    <tr><th>Weekly Seva Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 90 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>80–89 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>70–79 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>60–69 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>50–59 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>40–49 min</td><td>0</td></tr>
-                    <tr><td>&lt; 40 min</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">🎵 Instrument Bonus (Daily)</h3>
-                <table class="score-table">
-                    <tr><th>Minutes</th><th>Bonus</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+1</td></tr>
-                    <tr><td>&lt; 10 min</td><td>0</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#2E7D32;">👗 Vaishnav Dress / Tilak / Mala (Sunday)</h3>
-                <table class="score-table">
-                    <tr><td>All three: Yes</td><td class="score-pos">+5</td></tr>
-                    <tr><td>Any missing</td><td>0 (no penalty at L-2)</td></tr>
-                </table>
-                <div class="guide-info-box" style="margin-top:8px;">IGF/ICF_MTG: Gopi Dress + Blouse &nbsp;|&nbsp; IYF/ICF_PRJI: Dhoti + Kurta</div>
-            </div>
-        </div>
-
-        <!-- LEVEL 3 -->
-        <div id="gpanel-level3" class="guide-panel hidden">
-            <div class="guide-level-header" style="background:#F3E5F5;border-left:5px solid #6A1B9A;">
-                <span style="color:#6A1B9A;font-size:18px;font-weight:800;">Level-3</span>
-                <span style="font-size:12px;color:#555;margin-left:10px;">Daily Max: 115 pts &nbsp;|&nbsp; Weekly: 830 pts</span>
-            </div>
-            <div class="guide-warn-box" style="margin-bottom:12px;">
-                ⚡ <b>Stricter</b> sleep/wake targets<br>
-                ⚡ Instrument is <b>Compulsory</b> (not just bonus)<br>
-                ⚡ Pathan <b>AND</b> Hearing both scored separately<br>
-                ⚡ Day sleep limit: <b>60 min</b> (was 90)<br>
-                ⚡ Missing Dress/Tilak/Mala on Sunday = <b>−5 penalty</b>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">🌙 Nidra (Stricter)</h3>
-                <table class="score-table">
-                    <tr><th>Bed Time</th><th>Points</th></tr>
-                    <tr><td>≤ 10:30 PM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>10:31 – 10:35 PM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>10:36 – 10:40 PM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>10:41 – 10:45 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>10:46 – 10:50 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>10:51 – 10:55 PM</td><td>0</td></tr>
-                    <tr><td>After 10:55 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">🌅 Wake-up (Stricter)</h3>
-                <table class="score-table">
-                    <tr><th>Wake-up Time</th><th>Points</th></tr>
-                    <tr><td>≤ 5:30 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>5:31 – 5:35 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>5:36 – 5:40 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>5:41 – 5:45 AM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>5:46 – 5:50 AM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:51 – 5:55 AM</td><td>0</td></tr>
-                    <tr><td>After 5:55 AM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">📿 Chanting — Same as Level-1 &amp; 2</h3>
-                <table class="score-table">
-                    <tr><th>Finished Chanting By</th><th>Points</th></tr>
-                    <tr><td>≤ 9:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>9:01 – 9:30 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>9:31 – 11:00 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:01 AM – 2:30 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>2:31 – 5:00 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:01 – 7:00 PM</td><td>0</td></tr>
-                    <tr><td>After 7:00 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">📖 Pathan &amp; 🎧 Hearing — Best of Two (Max 25)</h3>
-                <div class="guide-info-box">⚠️ Same as L1/L2 — only the <b>better score</b> counts. Negative floored to 0. Max increased to 25.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes (each)</th><th>Points</th></tr>
-                    <tr><td>≥ 30 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>25–29 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>20–24 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5–9 min</td><td>0</td></tr>
-                    <tr><td>&lt; 5 min</td><td class="score-neg">−5 (floored to 0)</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">🎵 Instrument — Compulsory (Max 5)</h3>
-                <div class="guide-info-box">Instrument is now <b>mandatory</b> — not optional bonus like L1/L2.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>&lt; 10 min</td><td>0</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">😴 Day Sleep (Stricter — 60 min limit)</h3>
-                <table class="score-table">
-                    <tr><th>Duration</th><th>Points</th></tr>
-                    <tr><td>≤ 60 minutes</td><td class="score-pos">+10</td></tr>
-                    <tr><td>&gt; 60 minutes</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">🛠️ Service Pool — Weekly (Target: 90 min)</h3>
-                <table class="score-table">
-                    <tr><th>Weekly Seva Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 90 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>80–89 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>70–79 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>60–69 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>50–59 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>40–49 min</td><td>0</td></tr>
-                    <tr><td>&lt; 40 min</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#6A1B9A;">👗 Vaishnav Dress / Tilak / Mala — Sunday (±5 Penalty applies!)</h3>
-                <table class="score-table">
-                    <tr><th>Condition</th><th>Points</th></tr>
-                    <tr><td>All three: Yes</td><td class="score-pos">+5</td></tr>
-                    <tr><td>Any missing</td><td class="score-neg">−5 ⚠️ Penalty!</td></tr>
-                </table>
-                <div class="guide-info-box" style="margin-top:8px;">IGF/ICF_MTG: Gopi Dress + Blouse &nbsp;|&nbsp; IYF/ICF_PRJI: Dhoti + Kurta</div>
-            </div>
-        </div>
-
-        <!-- LEVEL 4 -->
-        <div id="gpanel-level4" class="guide-panel hidden">
-            <div class="guide-level-header" style="background:#FFEBEE;border-left:5px solid #B71C1C;">
-                <span style="color:#B71C1C;font-size:18px;font-weight:800;">Level-4</span>
-                <span style="font-size:12px;color:#555;margin-left:10px;">Daily Max: 140 pts &nbsp;|&nbsp; Weekly: 1005 pts</span>
-            </div>
-            <div class="guide-warn-box" style="margin-bottom:12px;">
-                🔴 Strictest wake-up target: <b>5:05 AM</b><br>
-                🔴 Pathan + Hearing + Instrument all <b>compulsory</b><br>
-                🔴 <b>Notes Revision</b> bonus added (up to +20/day)<br>
-                🔴 Dress penalty same as Level-3 (−5 if missing)
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">🌙 Nidra — Same as Level-3 (Target ≤ 10:30 PM)</h3>
-                <table class="score-table">
-                    <tr><th>Bed Time</th><th>Points</th></tr>
-                    <tr><td>≤ 10:30 PM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>10:31 – 10:35 PM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>10:36 – 10:40 PM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>10:41 – 10:45 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>10:46 – 10:50 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>10:51 – 10:55 PM</td><td>0</td></tr>
-                    <tr><td>After 10:55 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">🌅 Wake-up (Strictest of all levels)</h3>
-                <table class="score-table">
-                    <tr><th>Wake-up Time</th><th>Points</th></tr>
-                    <tr><td>≤ 5:05 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>5:06 – 5:10 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>5:11 – 5:15 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>5:16 – 5:20 AM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>5:21 – 5:25 AM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:26 – 5:30 AM</td><td>0</td></tr>
-                    <tr><td>After 5:30 AM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">📿 Chanting — Same as Level-1, 2 &amp; 3</h3>
-                <table class="score-table">
-                    <tr><th>Finished Chanting By</th><th>Points</th></tr>
-                    <tr><td>≤ 9:00 AM</td><td class="score-pos">+25</td></tr>
-                    <tr><td>9:01 – 9:30 AM</td><td class="score-pos">+20</td></tr>
-                    <tr><td>9:31 – 11:00 AM</td><td class="score-pos">+15</td></tr>
-                    <tr><td>11:01 AM – 2:30 PM</td><td class="score-pos">+10</td></tr>
-                    <tr><td>2:31 – 5:00 PM</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5:01 – 7:00 PM</td><td>0</td></tr>
-                    <tr><td>After 7:00 PM</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">📖 Pathan &amp; 🎧 Hearing — Both Compulsory (Max 25 each)</h3>
-                <div class="guide-info-box">Both scored <b>independently</b> — same scale as Level-3.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes (each)</th><th>Points</th></tr>
-                    <tr><td>≥ 30 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>25–29 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>20–24 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>5–9 min</td><td>0</td></tr>
-                    <tr><td>&lt; 5 min</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">📝 Notes Revision — Bonus (Max +20/day)</h3>
-                <div class="guide-info-box">Unique to Level-4 — revising class/lecture notes earns extra marks.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes</th><th>Bonus</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>5–9 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>&lt; 5 min</td><td>0</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">🎵 Instrument — Compulsory (Max 5)</h3>
-                <div class="guide-info-box">Same as Level-3 — compulsory, not optional.</div>
-                <table class="score-table" style="margin-top:8px;">
-                    <tr><th>Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 20 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>15–19 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>10–14 min</td><td class="score-pos">+3</td></tr>
-                    <tr><td>&lt; 10 min</td><td>0</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">😴 Day Sleep — Same as Level-3 (60 min limit)</h3>
-                <table class="score-table">
-                    <tr><th>Duration</th><th>Points</th></tr>
-                    <tr><td>≤ 60 minutes</td><td class="score-pos">+10</td></tr>
-                    <tr><td>&gt; 60 minutes</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">🛠️ Service Pool — Weekly (Target: 90 min)</h3>
-                <table class="score-table">
-                    <tr><th>Weekly Seva Minutes</th><th>Points</th></tr>
-                    <tr><td>≥ 90 min</td><td class="score-pos">+25</td></tr>
-                    <tr><td>80–89 min</td><td class="score-pos">+20</td></tr>
-                    <tr><td>70–79 min</td><td class="score-pos">+15</td></tr>
-                    <tr><td>60–69 min</td><td class="score-pos">+10</td></tr>
-                    <tr><td>50–59 min</td><td class="score-pos">+5</td></tr>
-                    <tr><td>40–49 min</td><td>0</td></tr>
-                    <tr><td>&lt; 40 min</td><td class="score-neg">−5</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3 style="color:#B71C1C;">👗 Vaishnav Dress / Tilak / Mala — Sunday (±5 Penalty applies!)</h3>
-                <table class="score-table">
-                    <tr><th>Condition</th><th>Points</th></tr>
-                    <tr><td>All three: Yes</td><td class="score-pos">+5</td></tr>
-                    <tr><td>Any missing</td><td class="score-neg">−5 ⚠️ Penalty!</td></tr>
-                </table>
-                <div class="guide-info-box" style="margin-top:8px;">IGF/ICF_MTG: Gopi Dress + Blouse &nbsp;|&nbsp; IYF/ICF_PRJI: Dhoti + Kurta</div>
-            </div>
-        </div>
-
-        <!-- REPORTS -->
-        <div id="gpanel-reports" class="guide-panel hidden">
-            <div class="guide-section">
-                <h3>📊 My Reports Tab</h3>
-                <table class="score-table">
-                    <tr><th>Column</th><th>What It Shows</th></tr>
-                    <tr><td>Date</td><td>Day and date (latest first)</td></tr>
-                    <tr><td>Bed / Wake / Chant</td><td>Time + score (M = marks)</td></tr>
-                    <tr><td>Pathan / Hearing</td><td>Minutes + score; winner in 🟢 green</td></tr>
-                    <tr><td>Instrument</td><td>Minutes + score</td></tr>
-                    <tr><td>Day Sleep</td><td>Minutes + score</td></tr>
-                    <tr><td>Seva (m)</td><td>Service minutes only (no daily marks)</td></tr>
-                    <tr><td>Bonus</td><td>Click to see breakdown popup</td></tr>
-                    <tr><td>Total</td><td>Daily score + Bonus</td></tr>
-                    <tr><td>%</td><td>Score as % of daily maximum</td></tr>
-                </table>
-                <div class="guide-info-box" style="margin-top:10px;">
-                    🛠️ Service pool score shown in week header (e.g. "🛠️ 60min→+25")<br>
-                    📅 Click week header to expand/collapse<br>
-                    ✏️ Bonus column is clickable — shows full breakdown
-                </div>
-            </div>
-            <div class="guide-section">
-                <h3>📈 Progress Charts</h3>
-                <div class="guide-row"><span class="guide-icon">📊</span><span>Go to <b>Progress</b> tab for weekly bar/line charts of your performance.</span></div>
-                <div class="guide-row"><span class="guide-icon">📥</span><span>Use <b>Download Excel</b> to export your complete history.</span></div>
-            </div>
-        </div>
-
-        <!-- ADMIN -->
-        <div id="gpanel-admin" class="guide-panel hidden">
-            <div class="guide-section">
-                <h3>⚙️ Roles & Permissions</h3>
-                <table class="score-table">
-                    <tr><th>Role</th><th>Can Do</th></tr>
-                    <tr><td style="font-weight:700;color:#7c3aed;">Super Admin</td><td>Full access — all depts, edit sadhana, change any role/level</td></tr>
-                    <tr><td style="font-weight:700;color:#1565C0;">Dept Admin</td><td>Own dept — change roles (teamLeader/user) and levels</td></tr>
-                    <tr><td style="font-weight:700;color:#2E7D32;">Team Leader</td><td>Own team — view history, progress, change level</td></tr>
-                    <tr><td style="font-weight:700;">User</td><td>Own data only — fill sadhana, view reports</td></tr>
-                </table>
-            </div>
-            <div class="guide-section">
-                <h3>🔼 How to Change Level</h3>
-                <div class="guide-row"><span class="guide-icon">1️⃣</span><span>Go to <b>Admin Panel</b></span></div>
-                <div class="guide-row"><span class="guide-icon">2️⃣</span><span>Find the devotee's card</span></div>
-                <div class="guide-row"><span class="guide-icon">3️⃣</span><span>Click the <b>Level dropdown</b> on their card</span></div>
-                <div class="guide-row"><span class="guide-icon">4️⃣</span><span>Select new level and confirm</span></div>
-            </div>
-            <div class="guide-section">
-                <h3>🔑 First Super Admin Setup</h3>
-                <div class="guide-warn-box">
-                    Go to Firebase Console → Firestore → users → your document<br>
-                    Set field: <b>role = superAdmin</b> (case-sensitive)
-                </div>
-            </div>
-        </div>
-
-        <!-- FAQ -->
-        <div id="gpanel-faq" class="guide-panel hidden">
-            <div class="guide-section">
-                <div class="faq-item">
-                    <div class="faq-q">Can I fill yesterday's sadhana?</div>
-                    <div class="faq-a">Yes! Select yesterday's date from the date dropdown in Daily Entry.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">Why is my weekly % lower than expected?</div>
-                    <div class="faq-a">NR days count as −30 and are included in the denominator. Check if you have any missed days.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">What is NR?</div>
-                    <div class="faq-a">Not Reported — if you don't fill sadhana for a day, it's recorded as NR with −30 penalty.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">Why no marks in the Seva column?</div>
-                    <div class="faq-a">Service is a weekly pool — marks are calculated on Saturday. Daily table shows minutes only. Score appears in the week header.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">Can bonus % exceed 100%?</div>
-                    <div class="faq-a">Yes! Bonus marks (instrument, dress, notes) are not added to the denominator, so your % can go above 100%.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">I can't see Dress / Tilak / Mala fields.</div>
-                    <div class="faq-a">These fields appear only on Sundays.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">My level changed — will old scores change?</div>
-                    <div class="faq-a">No. Old entries keep their original scores. Only new entries use the updated level.</div>
-                </div>
-                <div class="faq-item">
-                    <div class="faq-q">How do I change my password?</div>
-                    <div class="faq-a">Dashboard → Profile menu → Change Password.</div>
-                </div>
-            </div>
-        </div>
-
-        </div><!-- end scroll area -->
     </div>
 </div>
 
@@ -1883,16 +1226,6 @@ function highlightUserLevelTab(level) {
                 <span style="color:var(--muted);font-size:12px;">For support, contact your category coordinator.</span>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- ══ BONUS BREAKDOWN POPUP ══ -->
-<div id="bonus-popup" class="modal-overlay hidden" onclick="if(event.target===this)closeBonusPopup()">
-    <div class="modal-box sm">
-        <button class="modal-close" onclick="closeBonusPopup()">×</button>
-        <div class="modal-title">🌟 Bonus Breakdown</div>
-        <div id="bonus-popup-content"></div>
-        <button onclick="closeBonusPopup()" class="btn-gray" style="margin-top:12px;">Close</button>
     </div>
 </div>
 
