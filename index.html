@@ -760,6 +760,34 @@ function guideTab(tab) {
     if (panel) panel.classList.remove('hidden');
     if (btn)   btn.classList.add('active');
 }
+
+function openUserGuide() {
+    // Open guide and jump to user's current level tab
+    document.getElementById('user-guide-modal').classList.remove('hidden');
+    var level = (window.userProfile && window.userProfile.level) || 'Level-1';
+    var tabMap = {'Level-1':'level1','Level-2':'level2','Level-3':'level3','Level-4':'level4'};
+    var tab = tabMap[level] || 'intro';
+    guideTab(tab);
+    // Highlight user's level tab with a glow
+    highlightUserLevelTab(level);
+}
+
+function highlightUserLevelTab(level) {
+    var tabMap = {'Level-1':'level1','Level-2':'level2','Level-3':'level3','Level-4':'level4'};
+    var activeTab = tabMap[level];
+    ['level1','level2','level3','level4'].forEach(function(t) {
+        var b = document.getElementById('gtab-'+t);
+        if (!b) return;
+        if (t === activeTab) {
+            b.style.outline = '2px solid gold';
+            b.style.outlineOffset = '2px';
+            b.title = 'Your current level';
+        } else {
+            b.style.outline = '';
+            b.title = '';
+        }
+    });
+}
 </script>
 </head>
 <body>
