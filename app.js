@@ -514,7 +514,7 @@ function showSection(sec) {
 // ═══════════════════════════════════════════════════════════
 // 7. REPORTS TABLE
 // ═══════════════════════════════════════════════════════════
-const APP_START = '2026-02-12';
+const APP_START = '2026-03-03';
 
 // Fair denominator: 160 × days elapsed in week (past days + today if submitted)
 function fairDenominator(sunStr, weekData) {
