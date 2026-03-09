@@ -800,7 +800,7 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
 
-    const level = userProfile.level || 'IGF & IYF Coordinator';
+    const level = userProfile.level || 'Senior Batch';
     let slp     = document.getElementById('sleep-time').value;
     const wak   = document.getElementById('wakeup-time').value;
     const chn   = document.getElementById('chanting-time').value;
@@ -1399,10 +1399,8 @@ function setupDateSelect() {
 function refreshFormFields() {
     const notesArea   = document.getElementById('notes-area');
     const serviceArea = document.getElementById('service-area');
-    // Strictly check — only show notes if level is exactly 'Senior Batch'
     const isSB = userProfile && userProfile.level === 'Senior Batch';
     if (notesArea)   notesArea.classList.toggle('hidden', !isSB);
-    if (notesArea && !isSB) notesArea.classList.add('hidden'); // force hide
     if (serviceArea) serviceArea.classList.remove('hidden');
 }
 document.getElementById('profile-form').onsubmit = async (e) => {
@@ -1527,7 +1525,7 @@ if ('serviceWorker' in navigator) {
 
 // VAPID public key — replace with your actual key from Firebase Console
 // For now using a placeholder — see setup instructions
-const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+const VAPID_PUBLIC_KEY = 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc';
 
 // Convert VAPID key to Uint8Array
 function urlBase64ToUint8Array(base64String) {
@@ -1563,7 +1561,7 @@ async function saveNotificationToken() {
 
         let sub = await reg.pushManager.getSubscription();
         if (!sub) {
-            if (VAPID_PUBLIC_KEY === 'YOUR_VAPID_PUBLIC_KEY_HERE') return; // not configured yet
+            if (VAPID_PUBLIC_KEY === 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc') return; // not configured yet
             sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
