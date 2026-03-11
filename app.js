@@ -475,20 +475,235 @@ auth.onAuthStateChanged((user) => {
 function initDashboard() {
     const roleLabel = isSuperAdmin() ? '👑 Super Admin'
                     : isCategoryAdmin() ? `🛡️ Admin — ${userProfile.adminCategory}`
-                    : (userProfile.level || 'Senior Batch');
+                    : (userProfile.level || 'IGF & IYF Coordinator');
     document.getElementById('user-display-name').textContent = userProfile.name;
     document.getElementById('user-role-display').textContent = roleLabel;
-    if (isAnyAdmin()) { const ab = document.getElementById('admin-menu-btn'); if(ab) ab.classList.remove('hidden'); }
     showSection('dashboard');
-    switchTab('sadhana');
+
+    if (isSuperAdmin()) {
+        const userTabs  = document.getElementById('user-nav-tabs');
+        const adminTabs = document.getElementById('admin-nav-tabs');
+        if (userTabs)  userTabs.style.display  = 'none';
+        if (adminTabs) adminTabs.style.display = '';
+        const ab = document.getElementById('admin-menu-btn');
+        if (ab) ab.classList.add('hidden');
+        setTimeout(() => {
+            const wcrBtn = document.getElementById('sa-tab-wcr');
+            switchSATab('wcr', wcrBtn);
+        }, 100);
+    } else {
+        const userTabs  = document.getElementById('user-nav-tabs');
+        const adminTabs = document.getElementById('admin-nav-tabs');
+        if (userTabs)  userTabs.style.display  = '';
+        if (adminTabs) adminTabs.style.display = 'none';
+        if (isAnyAdmin()) {
+            const ab = document.getElementById('admin-menu-btn');
+            if (ab) ab.classList.remove('hidden');
+        }
+        switchTab('sadhana');
+        setupDateSelect();
+        refreshFormFields();
+    }
     if (window._initNotifications) window._initNotifications();
-    setupDateSelect();
-    refreshFormFields();
 }
 
 // ═══════════════════════════════════════════════════════════
 // 6. NAVIGATION
 // ═══════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════
+// SUPER ADMIN TAB SWITCHING + FILTERS
+// ═══════════════════════════════════════════════════════════
+let saActiveFilter = { wcr: '', individual: '', inactive: '' };
+
+window.switchSATab = (tab, btn) => {
+    // Hide all SA panels + user panels
+    ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+    });
+    document.querySelectorAll('.sa-panel').forEach(p => p.style.display = 'none');
+    // Deactivate all SA tab buttons
+    document.querySelectorAll('#admin-nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+
+    const panel = document.getElementById('sa-panel-' + tab);
+    if (panel) panel.style.display = '';
+    if (btn)   btn.classList.add('active');
+
+    // Load data
+    if (tab === 'wcr')        loadSAWcr(saActiveFilter.wcr);
+    if (tab === 'individual') loadSAIndividual(saActiveFilter.individual);
+    if (tab === 'inactive')   loadSAInactive(saActiveFilter.inactive);
+};
+
+window.setSAFilter = (tab, level, btn) => {
+    saActiveFilter[tab] = level;
+    // Update active filter button
+    const panel = document.getElementById('sa-panel-' + tab);
+    if (panel) panel.querySelectorAll('.sa-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    // Reload
+    if (tab === 'wcr')        loadSAWcr(level);
+    if (tab === 'individual') loadSAIndividual(level);
+    if (tab === 'inactive')   loadSAInactive(level);
+};
+
+window.filterSAUsers = () => {
+    const q = document.getElementById('sa-search-input')?.value?.toLowerCase() || '';
+    document.querySelectorAll('#sa-users-list .admin-user-card').forEach(card => {
+        const name = card.dataset.name || '';
+        card.style.display = name.includes(q) ? '' : 'none';
+    });
+};
+
+async function loadSAWcr(levelFilter) {
+    const container = document.getElementById('sa-wcr-container');
+    if (!container) return;
+    container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading…</p>';
+
+    const weeks = [];
+    for (let i=0;i<4;i++) {
+        const d=new Date(); d.setDate(d.getDate()-i*7);
+        weeks.push(getWeekInfo(d.toISOString().split('T')[0]));
+    }
+    weeks.reverse();
+
+    const usersSnap = await db.collection('users').get();
+    let filtered = usersSnap.docs
+        .filter(doc => {
+            const lvl = doc.data().level || 'Senior Batch';
+            return levelFilter ? lvl === levelFilter : true;
+        })
+        .sort((a,b) => (a.data().name||'').localeCompare(b.data().name||''));
+
+    if (!filtered.length) {
+        container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No devotees found.</p>';
+        return;
+    }
+
+    const pctStyle = (pct) => {
+        if (pct < 0)   return `color:#b91c1c;font-weight:700`;
+        if (pct < 20)  return `color:#b91c1c;font-weight:700`;
+        if (pct >= 70) return `color:#15803d;font-weight:700`;
+        return `color:#1a252f`;
+    };
+
+    let tHtml = `<table class="comp-table"><thead><tr>
+        <th class="comp-th comp-th-name">Name</th>
+        <th class="comp-th">Level</th>
+        <th class="comp-th">Chanting</th>
+        ${weeks.map(w=>`<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    for (const doc of filtered) {
+        const u = doc.data();
+        const weekCells = await Promise.all(weeks.map(async wk => {
+            const sSnap = await db.collection('users').doc(doc.id).collection('sadhana').get();
+            const allEnts = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
+            const ents = allEnts.filter(e => wk.days.includes(e.date));
+            const sc = calculateScores(ents, u.level||'Senior Batch', u.chantingCategory||'Level-3', u.exactRounds||16, wk.days);
+            const fd = fairDenominator(wk.days[0], ents);
+            const pct = fd > 0 ? Math.round((sc.total/fd)*100) : 0;
+            return `<td class="comp-td" style="${pctStyle(pct)}">${pct}%</td>`;
+        }));
+        tHtml += `<tr>
+            <td class="comp-td comp-name">${u.name||'—'}</td>
+            <td class="comp-td comp-meta">${(u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB')}</td>
+            <td class="comp-td comp-meta">${u.chantingCategory||'—'}</td>
+            ${weekCells.join('')}
+        </tr>`;
+    }
+    tHtml += '</tbody></table>';
+    container.innerHTML = tHtml;
+}
+
+async function loadSAIndividual(levelFilter) {
+    const listEl = document.getElementById('sa-users-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading...</p>';
+    const allUsers = await db.collection('users').get();
+    let users = allUsers.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (levelFilter) users = users.filter(u => (u.level || '') === levelFilter);
+    users.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    if (!users.length) { listEl.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">No devotees found.</p>'; return; }
+    listEl.innerHTML = users.map(u => {
+        const safe = (u.name||'Unknown').replace(/'/g,"\\'");
+        const level = u.level || 'N/A';
+        return `<div class="admin-user-card" data-name="${(u.name||'').toLowerCase()}">
+            <div class="user-info-row">
+                <div>
+                    <div class="user-name-text">${u.name||'Unknown'}</div>
+                    <div class="user-meta">${level} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button onclick="openUserHistory('${u.id}','${safe}')" class="btn-secondary btn-sm">History</button>
+                    <button onclick="downloadUserExcel('${u.id}','${safe}')" class="btn-success btn-sm">&#11015; Excel</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function loadSAInactive(levelFilter) {
+    const container = document.getElementById('sa-inactive-container');
+    if (!container) return;
+    container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">Loading…</p>';
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const usersSnap = await db.collection('users').get();
+
+    let users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (levelFilter) users = users.filter(u => (u.level||'Senior Batch') === levelFilter);
+
+    const results = [];
+    for (const u of users) {
+        let streak = 0;
+        for (let i=1; i<=30; i++) {
+            const d = new Date(today); d.setDate(d.getDate()-i);
+            const ds = d.toISOString().split('T')[0];
+            if (ds < APP_START) break;
+            const snap = await db.collection('users')
+                .doc(u.id).collection('sadhana').doc(ds).get();
+            if (snap.exists) break;
+            streak++;
+        }
+        if (streak >= 2) results.push({ ...u, missedDays: streak });
+    }
+    results.sort((a,b) => b.missedDays - a.missedDays);
+
+    if (!results.length) {
+        container.innerHTML = '<div class="card" style="text-align:center;color:#15803d;padding:20px;">🎉 All devotees are active!</div>';
+        return;
+    }
+
+    const grouped = { 4: [], 3: [], 2: [] };
+    results.forEach(u => {
+        if (u.missedDays >= 4) grouped[4].push(u);
+        else if (u.missedDays === 3) grouped[3].push(u);
+        else grouped[2].push(u);
+    });
+
+    let html = '';
+    const labels = { 4:'🔴 4+ Days Inactive', 3:'🟠 3 Days Inactive', 2:'🟡 2 Days Inactive' };
+    [4,3,2].forEach(k => {
+        if (!grouped[k].length) return;
+        html += `<h4 style="color:#555;font-size:13px;margin:14px 0 8px;">${labels[k]} (${grouped[k].length})</h4>`;
+        grouped[k].forEach(u => {
+            const lvl = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
+            html += `<div class="admin-user-card inactive-card">
+                <div class="user-info-row">
+                    <div>
+                        <div class="user-name-text">${u.name||'Unknown'}</div>
+                        <div class="inactive-meta">${lvl} · <strong>${u.missedDays} days missed</strong></div>
+                    </div>
+                </div>
+            </div>`;
+        });
+    });
+    container.innerHTML = html;
+}
+
 window.switchTab = (t) => {
     // Hide ALL panels including admin-panel
     ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
@@ -800,7 +1015,7 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
 
-    const level = userProfile.level || 'Senior Batch';
+    const level = userProfile.level || 'IGF & IYF Coordinator';
     let slp     = document.getElementById('sleep-time').value;
     const wak   = document.getElementById('wakeup-time').value;
     const chn   = document.getElementById('chanting-time').value;
@@ -1399,8 +1614,10 @@ function setupDateSelect() {
 function refreshFormFields() {
     const notesArea   = document.getElementById('notes-area');
     const serviceArea = document.getElementById('service-area');
+    // Strictly check — only show notes if level is exactly 'Senior Batch'
     const isSB = userProfile && userProfile.level === 'Senior Batch';
     if (notesArea)   notesArea.classList.toggle('hidden', !isSB);
+    if (notesArea && !isSB) notesArea.classList.add('hidden'); // force hide
     if (serviceArea) serviceArea.classList.remove('hidden');
 }
 document.getElementById('profile-form').onsubmit = async (e) => {
@@ -1525,7 +1742,7 @@ if ('serviceWorker' in navigator) {
 
 // VAPID public key — replace with your actual key from Firebase Console
 // For now using a placeholder — see setup instructions
-const VAPID_PUBLIC_KEY = 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc';
+const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY_HERE';
 
 // Convert VAPID key to Uint8Array
 function urlBase64ToUint8Array(base64String) {
@@ -1561,7 +1778,7 @@ async function saveNotificationToken() {
 
         let sub = await reg.pushManager.getSubscription();
         if (!sub) {
-            if (VAPID_PUBLIC_KEY === 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc') return; // not configured yet
+            if (VAPID_PUBLIC_KEY === 'YOUR_VAPID_PUBLIC_KEY_HERE') return; // not configured yet
             sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
