@@ -157,9 +157,9 @@
             pointer-events: none;
         }
         .gita-banner-img {
-            position: absolute; inset: 0; object-fit: cover;
+            position: absolute; inset: 0; object-fit: cover;object-position: center 40%;
             width: 100%; height: 100%; z-index: 0;
-            opacity: 0.45; filter: blur(0px);
+            opacity: 0.90; filter: blur(1.5px);
             pointer-events: none;
         }
         .gita-banner-content {
@@ -179,25 +179,6 @@
         .gita-ref {
             font-size: 11px; color: #7c3aed; margin-top: 6px; font-weight: 700;
             letter-spacing: 0.5px;
-        }
-
-        /* ── SUPER ADMIN TABS ── */
-        .sa-filter-bar {
-            display: flex; gap: 8px; flex-wrap: wrap;
-            margin-bottom: 14px;
-        }
-        .sa-filter-btn {
-            width: auto; padding: 6px 14px; font-size: 12px; font-weight: 600;
-            border-radius: 20px; border: 1.5px solid #e5e7eb;
-            background: white; color: #555; cursor: pointer; margin: 0;
-            transition: all 0.15s;
-        }
-        .sa-filter-btn:hover { border-color: #1A3C5E; color: #1A3C5E; transform: none; }
-        .sa-filter-btn.active { background: #1A3C5E; color: white; border-color: #1A3C5E; }
-
-        /* Admin panel icon button */
-        .admin-corner-btn img {
-            width: 22px; height: 22px; object-fit: contain;
         }
 
         /* ── USER GUIDE MODAL ── */
@@ -754,6 +735,15 @@
             font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit;
         }
 
+        /* ── SUPER ADMIN FILTER BAR ── */
+        .sa-filter-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+        .sa-filter-btn {
+            width:auto; padding:6px 14px; font-size:12px; font-weight:600;
+            border-radius:20px; border:1.5px solid #e5e7eb;
+            background:white; color:#555; cursor:pointer; margin:0; transition:all 0.15s;
+        }
+        .sa-filter-btn.active { background:#1A3C5E; color:white; border-color:#1A3C5E; }
+
     </style>
 </head>
 <body>
@@ -818,7 +808,7 @@
             <!-- Left: user hamburger + admin btn -->
             <div style="display:flex;gap:7px;align-items:center;">
                 <button class="user-menu-btn" onclick="openUserSidebar()" title="Menu">&#9776;</button>
-                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel"><img src="admin-panel.png" alt="Admin" onerror="this.outerHTML='&#9881;'"></button>
+                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel">&#9881;</button>
             </div>
             <!-- Center: name + role -->
             <div style="flex:1;padding:0 10px;">
@@ -842,17 +832,17 @@
         </div>
 
         <!-- ── NAV TABS ── -->
-        <!-- User tabs (hidden for superAdmin) -->
+        <!-- User tabs -->
         <div class="nav-tabs" id="user-nav-tabs" style="margin-bottom:16px;">
             <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
             <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
             <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
         </div>
-        <!-- Super Admin tabs (hidden for users) -->
+        <!-- Super Admin tabs -->
         <div class="nav-tabs" id="admin-nav-tabs" style="margin-bottom:16px;display:none;">
-            <button class="tab-btn active" id="sa-tab-wcr"       onclick="switchSATab('wcr',this)">&#128202; WCR</button>
+            <button class="tab-btn active" id="sa-tab-wcr"        onclick="switchSATab('wcr',this)">&#128202; WCR</button>
             <button class="tab-btn"        id="sa-tab-individual" onclick="switchSATab('individual',this)">&#128100; Individual Reports</button>
-            <button class="tab-btn"        id="sa-tab-inactive"  onclick="switchSATab('inactive',this)">&#9888; Inactive Devotees</button>
+            <button class="tab-btn"        id="sa-tab-inactive"   onclick="switchSATab('inactive',this)">&#9888; Inactive Devotees</button>
         </div>
 
         <!-- SADHANA ENTRY -->
@@ -918,7 +908,7 @@
             </div>
         </div>
 
-        <!-- ADMIN PANEL (drawer-based, for non-superAdmin) -->
+        <!-- ADMIN PANEL (category admins only — drawer based) -->
         <div id="admin-panel" class="tab-panel">
             <div id="admin-content-area">
                 <div id="admin-sub-reports" class="admin-sub-panel hidden">
@@ -953,12 +943,11 @@
         </div>
 
         <!-- SUPER ADMIN PANELS (direct tabs, no drawer) -->
-        <div id="sa-panel-wcr" class="tab-panel sa-panel" style="display:none;">
+        <div id="sa-panel-wcr" class="tab-panel" style="display:none;">
             <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                 <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; Weekly Comparative Report</h3>
                 <button onclick="downloadMasterReport()" class="btn-success btn-sm" style="width:auto;padding:8px 18px;">&#11015; Master Excel</button>
             </div>
-            <!-- Level Filter -->
             <div class="sa-filter-bar">
                 <button class="sa-filter-btn active" onclick="setSAFilter('wcr','',this)">All</button>
                 <button class="sa-filter-btn" onclick="setSAFilter('wcr','Senior Batch',this)">Senior Batch</button>
@@ -970,9 +959,8 @@
             </div>
         </div>
 
-        <div id="sa-panel-individual" class="tab-panel sa-panel" style="display:none;">
+        <div id="sa-panel-individual" class="tab-panel" style="display:none;">
             <h3 style="margin:0 0 12px;color:var(--primary);font-size:15px;">&#128100; Individual Reports</h3>
-            <!-- Level Filter -->
             <div class="sa-filter-bar">
                 <button class="sa-filter-btn active" onclick="setSAFilter('individual','',this)">All</button>
                 <button class="sa-filter-btn" onclick="setSAFilter('individual','Senior Batch',this)">Senior Batch</button>
@@ -987,9 +975,8 @@
             </div>
         </div>
 
-        <div id="sa-panel-inactive" class="tab-panel sa-panel" style="display:none;">
+        <div id="sa-panel-inactive" class="tab-panel" style="display:none;">
             <h3 style="margin:0 0 12px;color:var(--primary);font-size:15px;">&#9888; Inactive Devotees</h3>
-            <!-- Level Filter -->
             <div class="sa-filter-bar">
                 <button class="sa-filter-btn active" onclick="setSAFilter('inactive','',this)">All</button>
                 <button class="sa-filter-btn" onclick="setSAFilter('inactive','Senior Batch',this)">Senior Batch</button>
@@ -999,10 +986,9 @@
             <div id="sa-inactive-container"></div>
         </div>
 
-        <!-- Drawer Overlay -->
+        <!-- Drawer Overlay (category admins only) -->
         <div id="admin-drawer-overlay" class="drawer-overlay hidden" onclick="closeAdminDrawer()"></div>
-
-        <!-- Left Drawer -->
+        <!-- Left Drawer (category admins only) -->
         <div id="admin-drawer" class="admin-drawer">
             <div class="drawer-header">
                 <span>&#128272; Admin Menu</span>
@@ -1010,16 +996,13 @@
             </div>
             <nav class="drawer-nav">
                 <button class="drawer-nav-item active" onclick="selectAdminSection('reports', this)">
-                    <span class="drawer-icon">&#128202;</span>
-                    <span>Reports</span>
+                    <span class="drawer-icon">&#128202;</span><span>Reports</span>
                 </button>
                 <button class="drawer-nav-item" onclick="selectAdminSection('usermgmt', this)">
-                    <span class="drawer-icon">&#128101;</span>
-                    <span>User Management</span>
+                    <span class="drawer-icon">&#128101;</span><span>User Management</span>
                 </button>
                 <button class="drawer-nav-item" onclick="selectAdminSection('inactive', this)">
-                    <span class="drawer-icon">&#9888;&#65039;</span>
-                    <span>Inactive Devotees</span>
+                    <span class="drawer-icon">&#9888;&#65039;</span><span>Inactive Devotees</span>
                     <span id="inactive-tab-badge" class="inactive-tab-count"></span>
                 </button>
             </nav>
