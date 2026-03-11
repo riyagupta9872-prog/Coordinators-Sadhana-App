@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════
+ ═══════════════════════════════════════════════════════════
 // 1. FIREBASE SETUP
 // ═══════════════════════════════════════════════════════════
 const firebaseConfig = {
@@ -22,54 +22,11 @@ let activeListener = null;
 // 2. ROLE HELPERS
 // ═══════════════════════════════════════════════════════════
 const isSuperAdmin    = () => userProfile?.role === 'superAdmin';
-const isDeptAdmin     = () => userProfile?.role === 'deptAdmin';
-const isTeamLeader    = () => userProfile?.role === 'teamLeader';
-const isAnyAdmin      = () => isSuperAdmin() || isDeptAdmin() || isTeamLeader();
-
-// Teams per department
-const DEPT_TEAMS = {
-    'IGF':      ['Lalita','Visakha','Chitralekha','Champakalata','Tungavidya','Indulekha','Rangadevi','Sudevi','Yashoda','Subhadra','Devaki'],
-    'IYF':      ['Anant','Govind','Madhav'],
-    'ICF_MTG':  ['Rukmini','Satyabhama','Jambavati','Kalindi','Mitravinda','Nagnajiti (Satya)','Bhadra','Lakshmana'],
-    'ICF_PRJI': ['Vasudev','Sankarshan','Anirudha','Pradyuman']
-};
-
-// Populate team dropdown based on dept
-window.populateDeptTeams = (selectId, dept, selected = '') => {
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    sel.innerHTML = '<option value="" disabled selected>Select team</option>';
-    if (dept && DEPT_TEAMS[dept]) {
-        DEPT_TEAMS[dept].forEach(t => {
-            const o = document.createElement('option');
-            o.value = t; o.textContent = t;
-            if (t === selected) o.selected = true;
-            sel.appendChild(o);
-        });
-    }
-};
-
-// What users this admin can see
-function getAdminScope() {
-    if (isSuperAdmin()) return { type: 'all' };
-    if (isDeptAdmin())  return { type: 'dept', dept: userProfile.department };
-    if (isTeamLeader()) return { type: 'team', dept: userProfile.department, team: userProfile.team };
-    return { type: 'self' };
-}
-
-// Filter users by scope
-function matchesScope(uData) {
-    const scope = getAdminScope();
-    if (scope.type === 'all')  return true;
-    if (scope.type === 'dept') return uData.department === scope.dept;
-    if (scope.type === 'team') return uData.team === scope.team;
-    return false;
-}
-
-// For backward compatibility — level categories visible
+const isCategoryAdmin = () => userProfile?.role === 'admin';
+const isAnyAdmin      = () => isSuperAdmin() || isCategoryAdmin();
 const visibleCategories = () => {
-    if (isSuperAdmin()) return ['Level-1','Level-2','Level-3','Level-4'];
-    if (isDeptAdmin() || isTeamLeader()) return ['Level-1','Level-2','Level-3','Level-4'];
+    if (isSuperAdmin()) return ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
+    if (isCategoryAdmin()) return [userProfile.adminCategory];
     return [];
 };
 
@@ -98,7 +55,7 @@ function localDateStr(offsetDays = 0) {
 
 function getNRData(date) {
     return {
-        id: date, totalScore: -30, dayPercent: -19,
+        id: date, totalScore: -35, dayPercent: -22,
         sleepTime:'NR', wakeupTime:'NR', chantingTime:'NR',
         readingMinutes:0, hearingMinutes:0, serviceMinutes:0, notesMinutes:0, daySleepMinutes:0,
         scores:{ sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
@@ -114,38 +71,26 @@ function calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level) {
     const sc = { sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 };
     const slpM = t2m(slp, true);
     sc.sleep = slpM<=1350?25:slpM<=1355?20:slpM<=1360?15:slpM<=1365?10:slpM<=1370?5:slpM<=1375?0:-5;
-    const wakM   = t2m(wak);
-    const isL12w = level === 'Level-1' || level === 'Level-2';
-    const tW     = isL12w ? 365 : 305; // 6:05am for L1/2, 5:05am for L3/4
-    sc.wakeup = wakM<=tW?25:wakM<=tW+5?20:wakM<=tW+10?15:wakM<=tW+15?10:wakM<=tW+20?5:wakM<=tW+25?0:-5;
+    const wakM = t2m(wak);
+    sc.wakeup = wakM<=305?25:wakM<=310?20:wakM<=315?15:wakM<=320?10:wakM<=325?5:wakM<=330?0:-5;
     const chnM = t2m(chn);
     sc.chanting = chnM<=540?25:chnM<=570?20:chnM<=660?15:chnM<=870?10:chnM<=1020?5:chnM<=1140?0:-5;
     sc.daySleep = dsMin<=60?10:-5;
     const act = (m,thr) => m>=thr?25:m>=thr-10?20:m>=20?15:m>=15?10:m>=10?5:m>=5?0:-5;
-    // Level-1/2: max 110pts, wakeup target 6:05am (365min), only max(reading,hearing)
-    // Level-3/4: max 160pts, wakeup target 5:05am (305min), reading+hearing+service
-    const isL12 = level === 'Level-1' || level === 'Level-2';
-    const isL4  = level === 'Level-4';
-
-    sc.reading = act(rMin, isL4 ? 40 : 30);
-    sc.hearing = act(hMin, isL4 ? 40 : 30);
-
-    let total = sc.sleep + sc.wakeup + sc.chanting + sc.daySleep;
-    let maxM  = 160;
-
-    if (isL12) {
-        sc.reading  = Math.max(0, sc.reading);
-        sc.hearing  = Math.max(0, sc.hearing);
-        sc.service  = 0;
-        sc.notes    = 0;
-        total += Math.max(sc.reading, sc.hearing);
-        maxM = 110;
+    const isSB = level === 'Senior Batch';
+    sc.reading  = act(rMin, isSB?40:30);
+    sc.hearing  = act(hMin, isSB?40:30);
+    let total = sc.sleep + sc.wakeup + sc.chanting + sc.reading + sc.hearing + sc.daySleep;
+    if (isSB) {
+        sc.service = sMin>=15?10:sMin>=10?5:sMin>=5?0:-5;
+        sc.notes   = nMin>=20?15:nMin>=15?10:nMin>=10?5:nMin>=5?0:-5;
+        total += sc.service + sc.notes;
     } else {
         sc.service = act(sMin, 30);
         sc.notes   = 0;
-        total += sc.reading + sc.hearing + sc.service;
+        total += sc.service;
     }
-    return { sc, total, dayPercent: Math.round((total/maxM)*100) };
+    return { sc, total, dayPercent: Math.round((total/160)*100) };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -406,7 +351,7 @@ window.downloadMasterReport = async () => {
 
         for (const uDoc of usersSnap.docs) {
             const u = uDoc.data();
-            if (!matchesScope(u)) continue;
+            if (!cats.includes(u.level||'Senior Batch')) continue;
             const sSnap = await uDoc.ref.collection('sadhana').get();
             const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0}));
             entries.forEach(en => {
@@ -422,10 +367,10 @@ window.downloadMasterReport = async () => {
             .sort((a,b) => b[0].localeCompare(a[0]))
             .map(([sunStr, label]) => ({ sunStr, label }));
 
-        const rows = [['User Name','Level','Department','Team','Chanting Category',...allWeeks.map(w=>w.label.replace('_',' '))]];
+        const rows = [['User Name','Position Level','Chanting Category',...allWeeks.map(w=>w.label.replace('_',' '))]];
 
         userData.forEach(({user,entries}) => {
-            const row = [user.name, user.level||'Level-1', user.department||'-', user.team||'-', user.chantingCategory||'N/A'];
+            const row = [user.name, user.level||'Senior Batch', user.chantingCategory||'Level-1'];
             allWeeks.forEach(({ sunStr }) => {
                 let tot = 0; const masterWeekEnts = [];
                 const wSun = new Date(sunStr);
@@ -433,7 +378,7 @@ window.downloadMasterReport = async () => {
                     const c  = new Date(wSun); c.setDate(c.getDate()+i);
                     const ds = c.toISOString().split('T')[0];
                     const en = entries.find(e=>e.date===ds);
-                    tot += en ? en.score : -30;
+                    tot += en ? en.score : -35;
                     if(en) masterWeekEnts.push({id:ds,sleepTime:en.sleepTime||''});
                 }
                 const mfd = fairDenominator(wSun, masterWeekEnts);
@@ -504,7 +449,7 @@ auth.onAuthStateChanged((user) => {
             const prevLevel = userProfile ? userProfile.level : null;
             userProfile = docSnap.data();
 
-            if (!userProfile.level || !userProfile.department || !userProfile.team) {
+            if (!userProfile.level) {
                 document.getElementById('profile-title').textContent    = 'Complete Your Profile';
                 document.getElementById('profile-subtitle').textContent = 'Please fill in your details to continue';
                 document.getElementById('profile-name').value           = userProfile.name || '';
@@ -528,58 +473,37 @@ auth.onAuthStateChanged((user) => {
 });
 
 function initDashboard() {
-    const roleLabel = isSuperAdmin()  ? '👑 Super Admin'
-                    : isDeptAdmin()   ? `🛡️ Dept Admin — ${userProfile.department||''}`
-                    : isTeamLeader()  ? `👥 Team Leader — ${userProfile.team||''}`
-                    : `${userProfile.level||'Level-1'} | ${userProfile.department||''} | ${userProfile.team||''}`;
+    const roleLabel = isSuperAdmin() ? '👑 Super Admin'
+                    : isCategoryAdmin() ? `🛡️ Admin — ${userProfile.adminCategory}`
+                    : (userProfile.level || 'Senior Batch');
     document.getElementById('user-display-name').textContent = userProfile.name;
     document.getElementById('user-role-display').textContent = roleLabel;
     showSection('dashboard');
 
-    const userTabs  = document.getElementById('user-nav-tabs');
-    const adminTabs = document.getElementById('admin-nav-tabs');
-    const adminBtn  = document.getElementById('admin-menu-btn');
-
     if (isSuperAdmin()) {
-        // Super Admin: SA tabs only — no drawer, no user tabs
+        // Show SA tabs, hide user tabs + drawer btn
+        const userTabs  = document.getElementById('user-nav-tabs');
+        const adminTabs = document.getElementById('admin-nav-tabs');
         if (userTabs)  userTabs.style.display  = 'none';
         if (adminTabs) adminTabs.style.display = '';
-        if (adminBtn)  adminBtn.classList.add('hidden');
-        // Hide user panels
-        ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-        });
-        // Load SA default tab
+        const ab = document.getElementById('admin-menu-btn');
+        if (ab) ab.classList.add('hidden');
+        // Load WCR by default
         setTimeout(() => switchSATab('wcr', document.getElementById('sa-tab-wcr')), 50);
-
-    } else if (isDeptAdmin() || isTeamLeader()) {
-        // Dept Admin / Team Leader: user tabs + admin drawer button
-        if (userTabs)  userTabs.style.display  = '';
-        if (adminTabs) adminTabs.style.display = 'none';
-        if (adminBtn)  adminBtn.classList.remove('hidden');
-        ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = '';
-        });
-        switchTab('sadhana');
-        setupDateSelect();
-        refreshFormFields();
-
     } else {
-        // Regular user: user tabs only
+        // Regular user / category admin
+        const userTabs  = document.getElementById('user-nav-tabs');
+        const adminTabs = document.getElementById('admin-nav-tabs');
         if (userTabs)  userTabs.style.display  = '';
         if (adminTabs) adminTabs.style.display = 'none';
-        if (adminBtn)  adminBtn.classList.add('hidden');
-        ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = '';
-        });
+        if (isAnyAdmin()) {
+            const ab = document.getElementById('admin-menu-btn');
+            if (ab) ab.classList.remove('hidden');
+        }
         switchTab('sadhana');
         setupDateSelect();
         refreshFormFields();
     }
-
     if (window._initNotifications) window._initNotifications();
 }
 
@@ -587,44 +511,37 @@ function initDashboard() {
 // 6. NAVIGATION
 // ═══════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
-// SUPER ADMIN TAB SWITCHING + LEVEL-FILTERED LOADERS
+// SUPER ADMIN — TAB SWITCHING + FILTERS + DATA LOADERS
 // ═══════════════════════════════════════════════════════════
-
-// Track active level filter per SA tab
-let saLevelFilter = { wcr: '', individual: '', inactive: '' };
+let saActiveFilter = { wcr: '', individual: '', inactive: '' };
 
 window.switchSATab = (tab, btn) => {
-    // Hide all user panels
+    // Hide all panels
     ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
+        if (el) el.classList.remove('active');
     });
-    // Hide all SA panels
     ['sa-panel-wcr','sa-panel-individual','sa-panel-inactive'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
-    // Deactivate all tab buttons
+    // Deactivate tab buttons
     document.querySelectorAll('#admin-nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
 
-    // Show selected SA panel
     const panel = document.getElementById('sa-panel-' + tab);
     if (panel) panel.style.display = '';
     if (btn)   btn.classList.add('active');
 
-    // Load data for selected tab
-    if (tab === 'wcr')        loadSAWcr(saLevelFilter.wcr);
-    if (tab === 'individual') loadSAIndividual(saLevelFilter.individual);
-    if (tab === 'inactive')   loadSAInactive(saLevelFilter.inactive);
+    if (tab === 'wcr')        loadSAWcr(saActiveFilter.wcr);
+    if (tab === 'individual') loadSAIndividual(saActiveFilter.individual);
+    if (tab === 'inactive')   loadSAInactive(saActiveFilter.inactive);
 };
 
 window.setSAFilter = (tab, level, btn) => {
-    saLevelFilter[tab] = level;
-    // Update active filter button within this tab
+    saActiveFilter[tab] = level;
     const panel = document.getElementById('sa-panel-' + tab);
     if (panel) panel.querySelectorAll('.sa-filter-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    // Reload data with new filter
     if (tab === 'wcr')        loadSAWcr(level);
     if (tab === 'individual') loadSAIndividual(level);
     if (tab === 'inactive')   loadSAInactive(level);
@@ -633,21 +550,20 @@ window.setSAFilter = (tab, level, btn) => {
 window.filterSAUsers = () => {
     const q = (document.getElementById('sa-search-input')?.value || '').toLowerCase();
     document.querySelectorAll('#sa-users-list .admin-user-card').forEach(card => {
-        const name = (card.dataset.name || '');
-        card.style.display = name.includes(q) ? '' : 'none';
+        card.style.display = (card.dataset.name || '').includes(q) ? '' : 'none';
     });
 };
 
-// ── SA: Weekly Comparative Report ──────────────────────────
 async function loadSAWcr(levelFilter) {
     const container = document.getElementById('sa-wcr-container');
     if (!container) return;
-    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">Loading…</p>';
+    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
 
     const weeks = [];
     for (let i = 0; i < 4; i++) {
         const d = new Date(); d.setDate(d.getDate() - i * 7);
         const wi = getWeekInfo(d.toISOString().split('T')[0]);
+        // Build days array Sun–Sat from sunStr
         const days = [];
         for (let j = 0; j < 7; j++) {
             const dd = new Date(wi.sunStr); dd.setDate(dd.getDate() + j);
@@ -658,59 +574,60 @@ async function loadSAWcr(levelFilter) {
     weeks.reverse();
 
     const usersSnap = await db.collection('users').get();
-    // Exclude admin roles from reports
     let docs = usersSnap.docs
-        .filter(d => !['superAdmin','deptAdmin','teamLeader'].includes(d.data().role || ''))
-        .filter(d => !levelFilter || (d.data().level || '') === levelFilter)
+        .filter(d => levelFilter ? (d.data().level || 'Senior Batch') === levelFilter : true)
         .sort((a, b) => (a.data().name || '').localeCompare(b.data().name || ''));
 
     if (!docs.length) {
-        container.innerHTML = '<p style="color:#aaa;text-align:center;padding:30px;">No devotees found.</p>';
+        container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No devotees found.</p>';
         return;
     }
 
-    const pctStyle = (pct) => {
-        if (pct < 0)   return 'color:#b91c1c;font-weight:700;background:#FFFDE7;';
-        if (pct < 20)  return 'color:#b91c1c;font-weight:700;background:#FFFDE7;';
-        if (pct >= 70) return 'color:#15803d;font-weight:700;';
-        return 'color:#1a252f;';
+    const pctColor = (pct) => {
+        if (pct < 0)   return 'color:#b91c1c;font-weight:700';
+        if (pct < 20)  return 'color:#b91c1c;font-weight:700';
+        if (pct >= 70) return 'color:#15803d;font-weight:700';
+        return 'color:#1a252f';
     };
-    const pctText = (pct) => pct < 0 ? `(${Math.abs(pct)}%)` : `${pct}%`;
 
     let html = `<table class="comp-table"><thead><tr>
         <th class="comp-th comp-th-name">Name</th>
         <th class="comp-th">Level</th>
-        <th class="comp-th">Dept</th>
-        <th class="comp-th">Team</th>
+        <th class="comp-th">Chanting</th>
         ${weeks.map(w => `<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
     </tr></thead><tbody>`;
 
-    for (let ri = 0; ri < docs.length; ri++) {
-        const doc = docs[ri];
+    for (const doc of docs) {
         const u = doc.data();
         const sSnap = await db.collection('users').doc(doc.id).collection('sadhana').get();
-        const allEnts = sSnap.docs.map(d => ({ date: d.id, score: d.data().totalScore || 0, sleepTime: d.data().sleepTime || '' }));
-        const bg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
+        const allEnts = sSnap.docs.map(d => ({
+            date: d.id, score: d.data().totalScore || 0, sleepTime: d.data().sleepTime || ''
+        }));
 
         const weekCells = weeks.map(wk => {
             const todayStr = localDateStr(0);
-            let tot = 0; const weekEnts = [];
+            let tot = 0;
+            const weekEnts = [];
             wk.days.forEach(ds => {
                 if (ds < APP_START || ds > todayStr) return;
                 const en = allEnts.find(e => e.date === ds);
-                if (en) { tot += en.score; weekEnts.push({ id: ds, sleepTime: en.sleepTime || '' }); }
-                else if (ds < todayStr) tot += -35;
+                if (en) {
+                    tot += en.score;
+                    weekEnts.push({ id: ds, sleepTime: en.sleepTime || '', score: en.score });
+                } else if (ds < todayStr) {
+                    tot += -35;
+                }
             });
             const fd  = fairDenominator(wk.sunStr, weekEnts);
             const pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
-            return `<td class="comp-td comp-pct" style="${pctStyle(pct)}" title="${tot}/${fd}">${pctText(pct)}</td>`;
+            return `<td class="comp-td" style="${pctColor(pct)}">${pct}%</td>`;
         });
 
-        html += `<tr style="background:${bg}">
+        const lvl = (u.level || 'SB').replace(' Coordinator', '').replace('Senior Batch', 'SB');
+        html += `<tr>
             <td class="comp-td comp-name">${u.name || '—'}</td>
-            <td class="comp-td comp-meta">${u.level || '—'}</td>
-            <td class="comp-td comp-meta">${u.department || '—'}</td>
-            <td class="comp-td comp-meta">${u.team || '—'}</td>
+            <td class="comp-td comp-meta">${lvl}</td>
+            <td class="comp-td comp-meta">${u.chantingCategory || '—'}</td>
             ${weekCells.join('')}
         </tr>`;
     }
@@ -718,18 +635,15 @@ async function loadSAWcr(levelFilter) {
     container.innerHTML = html;
 }
 
-// ── SA: Individual Reports ──────────────────────────────────
 async function loadSAIndividual(levelFilter) {
     const listEl = document.getElementById('sa-users-list');
     if (!listEl) return;
     listEl.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
 
     const usersSnap = await db.collection('users').get();
-    let users = usersSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(u => !['superAdmin','deptAdmin','teamLeader'].includes(u.role || ''))
-        .filter(u => !levelFilter || (u.level || '') === levelFilter)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    let users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (levelFilter) users = users.filter(u => (u.level || 'Senior Batch') === levelFilter);
+    users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     if (!users.length) {
         listEl.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No devotees found.</p>';
@@ -738,103 +652,78 @@ async function loadSAIndividual(levelFilter) {
 
     listEl.innerHTML = users.map(u => {
         const safe = (u.name || 'Unknown').replace(/'/g, "\'");
+        const lvl  = (u.level || 'N/A').replace(' Coordinator', '');
         return `<div class="admin-user-card" data-name="${(u.name || '').toLowerCase()}">
-            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div class="user-info-row">
                 <div>
-                    <div style="font-weight:700;font-size:14px;">${u.name || 'Unknown'}</div>
-                    <div style="font-size:12px;color:#6b7280;margin-top:2px;">${u.level || 'N/A'} · ${u.department || '-'} · ${u.team || '-'} · ${u.chantingCategory || 'N/A'}</div>
+                    <div class="user-name-text">${u.name || 'Unknown'}</div>
+                    <div class="user-meta">${lvl} · ${u.chantingCategory || 'N/A'} · ${u.exactRounds || '?'} rounds</div>
                 </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                    <button onclick="openUserModal('${u.id}','${safe}')" class="btn-primary btn-sm">History</button>
-                    <button onclick="openProgressModal('${u.id}','${safe}')" class="btn-purple btn-sm">Progress</button>
-                    <button onclick="downloadUserExcel('${u.id}','${safe}')" class="btn-success btn-sm">Excel</button>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+                    <button onclick="openUserModal('${u.id}','${safe}')" class="btn-secondary btn-sm">History</button>
+                    <button onclick="downloadUserExcel('${u.id}','${safe}')" class="btn-success btn-sm">&#11015; Excel</button>
                 </div>
             </div>
         </div>`;
     }).join('');
 }
 
-// ── SA: Inactive Devotees ───────────────────────────────────
-let _saInactiveAll = [];
-
 async function loadSAInactive(levelFilter) {
     const container = document.getElementById('sa-inactive-container');
     if (!container) return;
     container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
 
+    const today = new Date();
     const usersSnap = await db.collection('users').get();
-    let users = usersSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(u => !['superAdmin','deptAdmin','teamLeader'].includes(u.role || ''))
-        .filter(u => !levelFilter || (u.level || '') === levelFilter);
+    let users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (levelFilter) users = users.filter(u => (u.level || 'Senior Batch') === levelFilter);
 
     const results = [];
     for (const u of users) {
-        const sSnap = await db.collection('users').doc(u.id).collection('sadhana').get();
-        const submitted = new Set(sSnap.docs.map(d => d.id).filter(d => d >= APP_START));
-        let missedDays = 0;
+        let streak = 0;
         for (let i = 1; i <= 30; i++) {
-            const ds = localDateStr(i);
+            const d  = new Date(today); d.setDate(d.getDate() - i);
+            const ds = d.toISOString().split('T')[0];
             if (ds < APP_START) break;
-            if (submitted.has(ds)) break;
-            missedDays++;
+            const snap = await db.collection('users').doc(u.id).collection('sadhana').doc(ds).get();
+            if (snap.exists) break;
+            streak++;
         }
-        if (missedDays >= 2) {
-            const allDates = Array.from(submitted).sort((a, b) => b.localeCompare(a));
-            results.push({ id: u.id, name: u.name, level: u.level, department: u.department, team: u.team, lastDate: allDates[0] || null, missedDays });
-        }
+        if (streak >= 2) results.push({ ...u, missedDays: streak });
     }
-    results.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    _saInactiveAll = results;
+    results.sort((a, b) => b.missedDays - a.missedDays);
 
-    renderSAInactive(4);
-}
-
-function renderSAInactive(minDays) {
-    const container = document.getElementById('sa-inactive-container');
-    if (!container) return;
-
-    const filtered = minDays === 4
-        ? _saInactiveAll.filter(u => u.missedDays >= 4)
-        : _saInactiveAll.filter(u => u.missedDays === minDays);
-
-    const label = minDays === 4 ? '4+ consecutive days' : `exactly ${minDays} days`;
-
-    if (!_saInactiveAll.length) {
+    if (!results.length) {
         container.innerHTML = '<div class="card" style="text-align:center;color:#15803d;padding:20px;">🎉 All devotees are active!</div>';
         return;
     }
 
-    const bodyHtml = filtered.length === 0
-        ? `<div style="padding:14px;text-align:center;color:#16a34a;font-weight:600;">✅ No devotees missing ${label}!</div>`
-        : filtered.map(u => {
-            const dot = u.missedDays >= 4 ? '🔴' : u.missedDays === 3 ? '🟠' : '🟡';
-            const last = u.lastDate ? `Last: ${u.lastDate.split('-').slice(1).join('/')}` : 'No entries yet';
-            const safe = (u.name || '').replace(/'/g, "\'");
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid #f3f4f6;flex-wrap:wrap;gap:8px;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span>${dot}</span>
+    const grouped = { 4: [], 3: [], 2: [] };
+    results.forEach(u => {
+        if (u.missedDays >= 4) grouped[4].push(u);
+        else if (u.missedDays === 3) grouped[3].push(u);
+        else grouped[2].push(u);
+    });
+
+    const labels = { 4: '🔴 4+ Days Inactive', 3: '🟠 3 Days Inactive', 2: '🟡 2 Days Inactive' };
+    let html = '';
+    [4, 3, 2].forEach(k => {
+        if (!grouped[k].length) return;
+        html += `<h4 style="color:#555;font-size:13px;margin:14px 0 8px;">${labels[k]} (${grouped[k].length})</h4>`;
+        grouped[k].forEach(u => {
+            const lvl = (u.level || 'SB').replace(' Coordinator', '').replace('Senior Batch', 'SB');
+            html += `<div class="admin-user-card inactive-card">
+                <div class="user-info-row">
                     <div>
-                        <div style="font-weight:700;font-size:14px;">${u.name}</div>
-                        <div style="font-size:12px;color:#6b7280;">${u.level || '—'} · ${last} · <strong>${u.missedDays} days missed</strong></div>
+                        <div class="user-name-text">${u.name || 'Unknown'}</div>
+                        <div class="inactive-meta">${lvl} · <strong>${u.missedDays} days missed</strong></div>
                     </div>
                 </div>
-                <button onclick="openUserModal('${u.id}','${safe}')" class="btn-primary btn-sm">History</button>
             </div>`;
-        }).join('');
-
-    container.innerHTML = `
-        <div style="border:1px solid #fca5a5;border-radius:10px;overflow:hidden;background:white;">
-            <div style="display:flex;gap:8px;padding:10px 14px;background:#fff7ed;border-bottom:1px solid #fca5a5;">
-                <button onclick="renderSAInactive(2)" class="inactive-filter-btn ${minDays===2?'active':''}">2 Days</button>
-                <button onclick="renderSAInactive(3)" class="inactive-filter-btn ${minDays===3?'active':''}">3 Days</button>
-                <button onclick="renderSAInactive(4)" class="inactive-filter-btn ${minDays===4?'active':''}">4+ Days</button>
-            </div>
-            <div>${bodyHtml}</div>
-        </div>`;
+        });
+    });
+    container.innerHTML = html;
 }
-
-window.renderSAInactive = renderSAInactive;
 
 window.switchTab = (t) => {
     // Hide ALL panels including admin-panel
@@ -1043,7 +932,7 @@ async function fetchChartData(userId, view) {
                 if (ds > todayStr) { curr.setDate(curr.getDate()+1); continue; }
                 const en = allEntries.find(e=>e.date===ds);
                 if (ds === todayStr && !en) { curr.setDate(curr.getDate()+1); continue; }
-                tot += en ? en.score : -30;
+                tot += en ? en.score : -35;
                 curr.setDate(curr.getDate()+1);
             }
             labels.push(wi.label.split('_')[0].split(' to ')[0]);
@@ -1147,7 +1036,7 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
 
-    const level = userProfile.level || 'Level-1';
+    const level = userProfile.level || 'Senior Batch';
     let slp     = document.getElementById('sleep-time').value;
     const wak   = document.getElementById('wakeup-time').value;
     const chn   = document.getElementById('chanting-time').value;
@@ -1272,7 +1161,7 @@ async function loadAdminPanel() {
     const usersSnap = await db.collection('users').get();
     const cats      = visibleCategories();
     const filtered  = usersSnap.docs
-        .filter(doc => matchesScope(doc.data()))
+        .filter(doc => cats.includes(doc.data().level||'Senior Batch'))
         .sort((a,b) => (a.data().name||'').localeCompare(b.data().name||''));
 
     // Color helper for percentage cells
@@ -1287,8 +1176,6 @@ async function loadAdminPanel() {
         <thead><tr>
             <th class="comp-th comp-th-name">Name</th>
             <th class="comp-th">Level</th>
-            <th class="comp-th">Dept</th>
-            <th class="comp-th">Team</th>
             <th class="comp-th">Chanting</th>
             ${weeks.map(w=>`<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
         </tr></thead><tbody>`;
@@ -1297,12 +1184,9 @@ async function loadAdminPanel() {
 
     const banner = document.createElement('div');
     banner.className = `info-banner ${isSuperAdmin()?'banner-purple':'banner-blue'}`;
-    const scope = getAdminScope();
     banner.innerHTML = isSuperAdmin()
-        ? '👑 <strong>Super Admin</strong> — All departments, full role management'
-        : isDeptAdmin()
-        ? `🛡️ <strong>Dept Admin</strong> — Department: <strong>${userProfile.department||''}</strong>`
-        : `👥 <strong>Team Leader</strong> — Team: <strong>${userProfile.team||''}</strong>`;
+        ? '👑 <strong>Super Admin</strong> — All categories, full role management'
+        : `🛡️ <strong>Category Admin</strong> — Managing: <strong>${userProfile.adminCategory}</strong>`;
     usersList.appendChild(banner);
 
     // Category filter — only visible to super admin
@@ -1346,9 +1230,7 @@ async function loadAdminPanel() {
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
         tHtml += `<tr style="background:${stripeBg}">
             <td class="comp-td comp-name">${u.name}</td>
-            <td class="comp-td comp-meta">${u.level||'L1'}</td>
-            <td class="comp-td comp-meta">${u.department||'-'}</td>
-            <td class="comp-td comp-meta">${u.team||'-'}</td>
+            <td class="comp-td comp-meta">${(u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB')}</td>
             <td class="comp-td comp-meta">${u.chantingCategory||'N/A'}</td>`;
         weeks.forEach(w => {
             let tot=0; let curr=new Date(w.sunStr);
@@ -1380,51 +1262,39 @@ async function loadAdminPanel() {
         card.className = 'user-card';
 
         let badge = '';
-        if (u.role==='superAdmin')  badge=`<span class="role-badge" style="background:#7e22ce;color:white;">👑 Super Admin</span>`;
-        else if (u.role==='deptAdmin') badge=`<span class="role-badge" style="background:#1a5276;color:white;">🛡️ Dept Admin (${u.department||''})</span>`;
-        else if (u.role==='teamLeader') badge=`<span class="role-badge" style="background:#1e8449;color:white;">👥 Team Leader (${u.team||''})</span>`;
+        if (u.role==='superAdmin') badge=`<span class="role-badge" style="background:#7e22ce;color:white;">👑 Super Admin</span>`;
+        else if (u.role==='admin') badge=`<span class="role-badge" style="background:#d97706;color:white;">🛡️ ${u.adminCategory||''}</span>`;
 
         const safe = (u.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
         let roleDropdown = '';
         if (isSuperAdmin()) {
-            // Super admin can assign any role
             let opts = '<option value="" disabled selected>Change Role…</option>';
-            if (u.role === 'superAdmin') {
+            if (u.role==='superAdmin') {
                 opts += '<option value="demote">🚫 Revoke Super Admin</option>';
+            } else if (u.role==='admin') {
+                opts += `<option value="superAdmin">👑 Make Super Admin</option>
+                    <option value="sb">⭐ Shift to Senior Batch</option>
+                    <option value="cat:Senior Batch">🛡️ Make Admin — Senior Batch</option>
+                    <option value="cat:IGF & IYF Coordinator">🛡️ Make Admin — IGF & IYF</option>
+                    <option value="cat:ICF Coordinator">🛡️ Make Admin — ICF</option>
+                    <option value="demote">🚫 Revoke Admin</option>`;
             } else {
-                opts += `<option value="superAdmin">👑 Make Super Admin</option>`;
-                ['IGF','IYF','ICF_MTG','ICF_PRJI'].forEach(dept => {
-                    opts += `<option value="deptAdmin:${dept}">🛡️ Dept Admin — ${dept}</option>`;
-                    if (DEPT_TEAMS[dept]) {
-                        DEPT_TEAMS[dept].forEach(team => {
-                            opts += `<option value="teamLeader:${dept}:${team}">👥 Team Leader — ${team} (${dept})</option>`;
-                        });
-                    }
-                });
-                opts += '<option value="demote">🚫 Revoke to User</option>';
+                opts += `<option value="superAdmin">👑 Make Super Admin</option>
+                    <option value="sb">⭐ Shift to Senior Batch</option>
+                    <option value="cat:Senior Batch">🛡️ Make Admin — Senior Batch</option>
+                    <option value="cat:IGF & IYF Coordinator">🛡️ Make Admin — IGF & IYF</option>
+                    <option value="cat:ICF Coordinator">🛡️ Make Admin — ICF</option>`;
             }
             roleDropdown = `<select onchange="handleRoleDropdown('${uDoc.id}',this)"
-                style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px;height:34px;background:white;cursor:pointer;flex:1;min-width:180px;max-width:220px;margin:0;">
-                ${opts}</select>`;
-        } else if (isDeptAdmin() && u.department === userProfile.department && u.role !== 'superAdmin') {
-            // Dept admin can only assign teamLeader within their dept
-            let opts = '<option value="" disabled selected>Change Role…</option>';
-            if (DEPT_TEAMS[userProfile.department]) {
-                DEPT_TEAMS[userProfile.department].forEach(team => {
-                    opts += `<option value="teamLeader:${userProfile.department}:${team}">👥 Team Leader — ${team}</option>`;
-                });
-            }
-            opts += '<option value="demote">🚫 Revoke to User</option>';
-            roleDropdown = `<select onchange="handleRoleDropdown('${uDoc.id}',this)"
-                style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px;height:34px;background:white;cursor:pointer;flex:1;min-width:180px;max-width:220px;margin:0;">
+                style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px;height:34px;background:white;cursor:pointer;flex:1;min-width:150px;max-width:200px;margin:0;">
                 ${opts}</select>`;
         }
 
         card.innerHTML = `
             <div class="user-card-top">
                 <span class="user-name">${u.name}</span>${badge}
-                <div class="user-meta">${u.level||'Level-1'} · ${u.department||'-'} · ${u.team||'-'} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
+                <div class="user-meta">${u.level||'Senior Batch'} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
             </div>
             <div class="user-actions">
                 <button onclick="openUserModal('${uDoc.id}','${safe}')" class="btn-primary btn-sm">History</button>
@@ -1462,7 +1332,7 @@ async function loadAdminPanel() {
                     <span class="inactive-dot">${dot}</span>
                     <div>
                         <div class="inactive-name">${u.name}</div>
-                        <div class="inactive-meta">${u.level||'Level-1'} · ${lastTxt} · <strong>${u.missedDays} days missed</strong></div>
+                        <div class="inactive-meta">${u.level||'Senior Batch'} · ${lastTxt} · <strong>${u.missedDays} days missed</strong></div>
                     </div>
                 </div>
                 <div class="inactive-actions">
@@ -1500,35 +1370,21 @@ async function loadAdminPanel() {
 }
 
 window.handleRoleDropdown = async (uid, sel) => {
-    const val = sel.value; sel.value = '';
+    const val = sel.value; sel.value='';
     if (!val) return;
-    let newRole, dept = null, team = null, msg = '';
-
-    if (val === 'superAdmin') {
-        newRole = 'superAdmin';
-        msg = '👑 Make this user SUPER ADMIN?\nFull access to all departments.';
-    } else if (val.startsWith('deptAdmin:')) {
-        newRole = 'deptAdmin';
-        dept    = val.split(':')[1];
-        msg     = `🛡️ Assign as Dept Admin for: ${dept}?`;
-    } else if (val.startsWith('teamLeader:')) {
-        const parts = val.split(':');
-        newRole = 'teamLeader';
-        dept    = parts[1];
-        team    = parts[2];
-        msg     = `👥 Assign as Team Leader for team: ${team} (${dept})?`;
-    } else if (val === 'demote') {
-        newRole = 'user';
-        msg     = '🚫 Revoke all admin access and set as regular User?';
-    } else return;
-
+    let newRole, cat=null, msg='';
+    if (val==='superAdmin')          { newRole='superAdmin'; msg='👑 Make this user SUPER ADMIN?\nFull access to all categories.'; }
+    else if (val==='sb')             { newRole='user'; cat=null; msg='⭐ Shift this devotee to SENIOR BATCH?\nThey will be moved out of their current batch.'; }
+    else if (val.startsWith('cat:')) { newRole='admin'; cat=val.slice(4); msg=`🛡️ Assign as Category Admin for:\n"${cat}"?`; }
+    else if (val==='demote')         { newRole='user';  msg='🚫 Revoke all admin access?'; }
+    else return;
     if (!confirm(msg)) return;
     if (!confirm('Final confirmation?')) return;
-
-    const updateData = { role: newRole, department: dept || (await db.collection('users').doc(uid).get()).data().department, team: team || (await db.collection('users').doc(uid).get()).data().team };
+    const updateData = { role:newRole, adminCategory:cat };
+    if (val === 'sb') updateData.level = 'Senior Batch';
     await db.collection('users').doc(uid).update(updateData);
-    alert('✅ Role updated!');
-    if (window._sendRoleNotification) window._sendRoleNotification(uid, '', val, dept);
+    alert(val === 'sb' ? '✅ Devotee shifted to Senior Batch!' : '✅ Role updated!');
+    if (window._sendRoleNotification) window._sendRoleNotification(uid, '', val, cat);
     loadAdminPanel();
 };
 
@@ -1788,14 +1644,11 @@ document.getElementById('profile-form').onsubmit = async (e) => {
     const data = {
         name:             document.getElementById('profile-name').value,
         level:            document.getElementById('profile-level').value,
-        department:       document.getElementById('profile-dept').value,
-        team:             document.getElementById('profile-team').value,
         chantingCategory: document.getElementById('profile-chanting').value,
         exactRounds:      document.getElementById('profile-exact-rounds').value,
         role:             userProfile?.role || 'user'
     };
-    if (!data.department || !data.team) { alert('Please select Department and Team.'); return; }
-    await db.collection('users').doc(currentUser.uid).set(data, { merge: true });
+    await db.collection('users').doc(currentUser.uid).set(data, { merge:true });
     alert('✅ Profile saved!');
     location.reload();
 };
@@ -1862,9 +1715,6 @@ window.openProfileEdit = () => {
     document.getElementById('profile-subtitle').textContent = 'Update your details';
     document.getElementById('profile-name').value           = userProfile.name             || '';
     document.getElementById('profile-level').value          = userProfile.level            || '';
-    const deptSel = document.getElementById('profile-dept');
-    if (deptSel) deptSel.value = userProfile.department || '';
-    populateDeptTeams('profile-team', userProfile.department || '', userProfile.team || '');
     document.getElementById('profile-chanting').value       = userProfile.chantingCategory || '';
     document.getElementById('profile-exact-rounds').value   = userProfile.exactRounds      || '';
     document.getElementById('cancel-edit').classList.remove('hidden');
@@ -2090,10 +1940,7 @@ window.openUserSidebar = () => {
         const n = document.getElementById('sidebar-user-name');
         const r = document.getElementById('sidebar-user-role');
         if (n) n.textContent = userProfile.name || '';
-        if (r) r.textContent = userProfile.role === 'superAdmin' ? '👑 Super Admin'
-            : userProfile.role === 'deptAdmin' ? `🛡️ Dept Admin — ${userProfile.department||''}`
-            : userProfile.role === 'teamLeader' ? `👥 Team Leader — ${userProfile.team||''}`
-            : `${userProfile.level||'Level-1'} | ${userProfile.department||''} | ${userProfile.team||''}`;
+        if (r) r.textContent = userProfile.role === 'superAdmin' ? 'Super Admin' : userProfile.role === 'admin' ? 'Admin - ' + (userProfile.level||'') : userProfile.level || '';
     }
     const bellIcon = document.getElementById('sidebar-bell-icon');
     const bellLabel = document.getElementById('sidebar-bell-label');
