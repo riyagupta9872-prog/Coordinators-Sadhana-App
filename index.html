@@ -157,9 +157,9 @@
             pointer-events: none;
         }
         .gita-banner-img {
-            position: absolute; inset: 0; object-fit: cover;object-position: center 40%;
+            position: absolute; inset: 0; object-fit: cover;
             width: 100%; height: 100%; z-index: 0;
-            opacity: 0.90; filter: blur(1.5px);
+            opacity: 0.45; filter: blur(0px);
             pointer-events: none;
         }
         .gita-banner-content {
@@ -179,6 +179,25 @@
         .gita-ref {
             font-size: 11px; color: #7c3aed; margin-top: 6px; font-weight: 700;
             letter-spacing: 0.5px;
+        }
+
+        /* ── SUPER ADMIN TABS ── */
+        .sa-filter-bar {
+            display: flex; gap: 8px; flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .sa-filter-btn {
+            width: auto; padding: 6px 14px; font-size: 12px; font-weight: 600;
+            border-radius: 20px; border: 1.5px solid #e5e7eb;
+            background: white; color: #555; cursor: pointer; margin: 0;
+            transition: all 0.15s;
+        }
+        .sa-filter-btn:hover { border-color: #1A3C5E; color: #1A3C5E; transform: none; }
+        .sa-filter-btn.active { background: #1A3C5E; color: white; border-color: #1A3C5E; }
+
+        /* Admin panel icon button */
+        .admin-corner-btn img {
+            width: 22px; height: 22px; object-fit: contain;
         }
 
         /* ── USER GUIDE MODAL ── */
@@ -799,7 +818,7 @@
             <!-- Left: user hamburger + admin btn -->
             <div style="display:flex;gap:7px;align-items:center;">
                 <button class="user-menu-btn" onclick="openUserSidebar()" title="Menu">&#9776;</button>
-                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel">&#9881;</button>
+                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel"><img src="admin-panel.png" alt="Admin" onerror="this.outerHTML='&#9881;'"></button>
             </div>
             <!-- Center: name + role -->
             <div style="flex:1;padding:0 10px;">
@@ -823,10 +842,17 @@
         </div>
 
         <!-- ── NAV TABS ── -->
-        <div class="nav-tabs" style="margin-bottom:16px;">
+        <!-- User tabs (hidden for superAdmin) -->
+        <div class="nav-tabs" id="user-nav-tabs" style="margin-bottom:16px;">
             <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
             <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
             <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
+        </div>
+        <!-- Super Admin tabs (hidden for users) -->
+        <div class="nav-tabs" id="admin-nav-tabs" style="margin-bottom:16px;display:none;">
+            <button class="tab-btn active" id="sa-tab-wcr"       onclick="switchSATab('wcr',this)">&#128202; WCR</button>
+            <button class="tab-btn"        id="sa-tab-individual" onclick="switchSATab('individual',this)">&#128100; Individual Reports</button>
+            <button class="tab-btn"        id="sa-tab-inactive"  onclick="switchSATab('inactive',this)">&#9888; Inactive Devotees</button>
         </div>
 
         <!-- SADHANA ENTRY -->
@@ -892,12 +918,9 @@
             </div>
         </div>
 
-        <!-- ADMIN PANEL -->
+        <!-- ADMIN PANEL (drawer-based, for non-superAdmin) -->
         <div id="admin-panel" class="tab-panel">
-
-            <!-- Content area -->
             <div id="admin-content-area">
-                <!-- Default: Reports -->
                 <div id="admin-sub-reports" class="admin-sub-panel hidden">
                     <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                         <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; 4-Week Performance (%)</h3>
@@ -907,8 +930,6 @@
                         <div id="admin-comparative-reports-container"></div>
                     </div>
                 </div>
-
-                <!-- User Management -->
                 <div id="admin-sub-usermgmt" class="admin-sub-panel hidden">
                     <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128101; User Management</h3>
                     <div class="card">
@@ -924,14 +945,58 @@
                         <div id="admin-users-list"></div>
                     </div>
                 </div>
-
-                <!-- Inactive Devotees -->
                 <div id="admin-sub-inactive" class="admin-sub-panel hidden">
                     <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#9888; Inactive Devotees</h3>
                     <div id="admin-inactive-container"></div>
                 </div>
             </div>
+        </div>
 
+        <!-- SUPER ADMIN PANELS (direct tabs, no drawer) -->
+        <div id="sa-panel-wcr" class="tab-panel sa-panel" style="display:none;">
+            <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; Weekly Comparative Report</h3>
+                <button onclick="downloadMasterReport()" class="btn-success btn-sm" style="width:auto;padding:8px 18px;">&#11015; Master Excel</button>
+            </div>
+            <!-- Level Filter -->
+            <div class="sa-filter-bar">
+                <button class="sa-filter-btn active" onclick="setSAFilter('wcr','',this)">All</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('wcr','Senior Batch',this)">Senior Batch</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('wcr','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('wcr','ICF Coordinator',this)">ICF</button>
+            </div>
+            <div class="card" style="overflow-x:auto;overflow-y:auto;max-height:70vh;">
+                <div id="sa-wcr-container"></div>
+            </div>
+        </div>
+
+        <div id="sa-panel-individual" class="tab-panel sa-panel" style="display:none;">
+            <h3 style="margin:0 0 12px;color:var(--primary);font-size:15px;">&#128100; Individual Reports</h3>
+            <!-- Level Filter -->
+            <div class="sa-filter-bar">
+                <button class="sa-filter-btn active" onclick="setSAFilter('individual','',this)">All</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('individual','Senior Batch',this)">Senior Batch</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('individual','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('individual','ICF Coordinator',this)">ICF</button>
+            </div>
+            <div class="card">
+                <div class="admin-search-bar">
+                    <input type="text" id="sa-search-input" placeholder="Search devotee..." oninput="filterSAUsers()" style="margin:0;flex:1;">
+                </div>
+                <div id="sa-users-list"></div>
+            </div>
+        </div>
+
+        <div id="sa-panel-inactive" class="tab-panel sa-panel" style="display:none;">
+            <h3 style="margin:0 0 12px;color:var(--primary);font-size:15px;">&#9888; Inactive Devotees</h3>
+            <!-- Level Filter -->
+            <div class="sa-filter-bar">
+                <button class="sa-filter-btn active" onclick="setSAFilter('inactive','',this)">All</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('inactive','Senior Batch',this)">Senior Batch</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('inactive','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
+                <button class="sa-filter-btn" onclick="setSAFilter('inactive','ICF Coordinator',this)">ICF</button>
+            </div>
+            <div id="sa-inactive-container"></div>
         </div>
 
         <!-- Drawer Overlay -->
