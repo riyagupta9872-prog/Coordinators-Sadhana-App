@@ -562,7 +562,14 @@ async function loadSAWcr(levelFilter) {
     const weeks = [];
     for (let i = 0; i < 4; i++) {
         const d = new Date(); d.setDate(d.getDate() - i * 7);
-        weeks.push(getWeekInfo(d.toISOString().split('T')[0]));
+        const wi = getWeekInfo(d.toISOString().split('T')[0]);
+        // Build days array Sun–Sat from sunStr
+        const days = [];
+        for (let j = 0; j < 7; j++) {
+            const dd = new Date(wi.sunStr); dd.setDate(dd.getDate() + j);
+            days.push(dd.toISOString().split('T')[0]);
+        }
+        weeks.push({ ...wi, days });
     }
     weeks.reverse();
 
@@ -598,10 +605,21 @@ async function loadSAWcr(levelFilter) {
         }));
 
         const weekCells = weeks.map(wk => {
-            const ents = allEnts.filter(e => wk.days.includes(e.date));
-            const sc   = calculateScores(ents, u.level || 'Senior Batch', u.chantingCategory || 'Level-3', u.exactRounds || 16, wk.days);
-            const fd   = fairDenominator(wk.days[0], ents);
-            const pct  = fd > 0 ? Math.round((sc.total / fd) * 100) : 0;
+            const todayStr = localDateStr(0);
+            let tot = 0;
+            const weekEnts = [];
+            wk.days.forEach(ds => {
+                if (ds < APP_START || ds > todayStr) return;
+                const en = allEnts.find(e => e.date === ds);
+                if (en) {
+                    tot += en.score;
+                    weekEnts.push({ id: ds, sleepTime: en.sleepTime || '', score: en.score });
+                } else if (ds < todayStr) {
+                    tot += -35;
+                }
+            });
+            const fd  = fairDenominator(wk.sunStr, weekEnts);
+            const pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
             return `<td class="comp-td" style="${pctColor(pct)}">${pct}%</td>`;
         });
 
