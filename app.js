@@ -481,24 +481,24 @@ function initDashboard() {
     showSection('dashboard');
 
     if (isSuperAdmin()) {
-        // Show SA tabs, hide user tabs + drawer btn
-        const userTabs  = document.getElementById('user-nav-tabs');
-        const adminTabs = document.getElementById('admin-nav-tabs');
-        if (userTabs)  userTabs.style.display  = 'none';
-        if (adminTabs) adminTabs.style.display = '';
-        const ab = document.getElementById('admin-menu-btn');
-        if (ab) ab.classList.add('hidden');
-        // Load WCR by default
-        setTimeout(() => switchSATab('wcr', document.getElementById('sa-tab-wcr')), 50);
+        // Show SA tabs, hide user tabs + gear btn
+        document.getElementById('user-nav-tabs').style.display = 'none';
+        document.getElementById('sa-nav-tabs').style.display   = '';
+        document.getElementById('admin-menu-btn').classList.add('hidden');
+        // Add class to body for CSS filter visibility
+        document.body.classList.add('super-admin-view');
+        // Load admin panel with WCR active
+        switchTab('admin');
+        setTimeout(() => {
+            selectAdminSection('reports', document.querySelector('.sa-tab-btn.active'));
+            loadAdminPanel();
+        }, 50);
     } else {
-        // Regular user / category admin
-        const userTabs  = document.getElementById('user-nav-tabs');
-        const adminTabs = document.getElementById('admin-nav-tabs');
-        if (userTabs)  userTabs.style.display  = '';
-        if (adminTabs) adminTabs.style.display = 'none';
+        document.getElementById('user-nav-tabs').style.display = '';
+        document.getElementById('sa-nav-tabs').style.display   = 'none';
+        document.body.classList.remove('super-admin-view');
         if (isAnyAdmin()) {
-            const ab = document.getElementById('admin-menu-btn');
-            if (ab) ab.classList.remove('hidden');
+            document.getElementById('admin-menu-btn').classList.remove('hidden');
         }
         switchTab('sadhana');
         setupDateSelect();
@@ -510,220 +510,69 @@ function initDashboard() {
 // ═══════════════════════════════════════════════════════════
 // 6. NAVIGATION
 // ═══════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════
-// SUPER ADMIN — TAB SWITCHING + FILTERS + DATA LOADERS
-// ═══════════════════════════════════════════════════════════
-let saActiveFilter = { wcr: '', individual: '', inactive: '' };
 
-window.switchSATab = (tab, btn) => {
-    // Hide all panels
-    ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.remove('active');
-    });
-    ['sa-panel-wcr','sa-panel-individual','sa-panel-inactive'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-    });
-    // Deactivate tab buttons
-    document.querySelectorAll('#admin-nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-
-    const panel = document.getElementById('sa-panel-' + tab);
-    if (panel) panel.style.display = '';
-    if (btn)   btn.classList.add('active');
-
-    if (tab === 'wcr')        loadSAWcr(saActiveFilter.wcr);
-    if (tab === 'individual') loadSAIndividual(saActiveFilter.individual);
-    if (tab === 'inactive')   loadSAInactive(saActiveFilter.inactive);
-};
-
-window.setSAFilter = (tab, level, btn) => {
-    saActiveFilter[tab] = level;
-    const panel = document.getElementById('sa-panel-' + tab);
-    if (panel) panel.querySelectorAll('.sa-filter-btn').forEach(b => b.classList.remove('active'));
+// ═══════════════════════════════════════
+// SUPER ADMIN — section switch + filters
+// ═══════════════════════════════════════
+window.switchSASection = (section, btn) => {
+    // Update tab buttons
+    document.querySelectorAll('.sa-tab-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    if (tab === 'wcr')        loadSAWcr(level);
-    if (tab === 'individual') loadSAIndividual(level);
-    if (tab === 'inactive')   loadSAInactive(level);
+    // Use existing selectAdminSection to show correct sub-panel
+    selectAdminSection(section, btn || document.querySelector('.sa-tab-btn'));
 };
 
-window.filterSAUsers = () => {
-    const q = (document.getElementById('sa-search-input')?.value || '').toLowerCase();
-    document.querySelectorAll('#sa-users-list .admin-user-card').forEach(card => {
-        card.style.display = (card.dataset.name || '').includes(q) ? '' : 'none';
-    });
+window.applyLevelFilter = (panel, level, btn) => {
+    // Update filter buttons
+    const filterBar = document.getElementById('filter-' + panel);
+    if (filterBar) filterBar.querySelectorAll('.sa-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    if (panel === 'reports') {
+        // Filter comparative table rows
+        const rows = document.querySelectorAll('#comp-perf-table tbody tr');
+        rows.forEach(row => {
+            const lvlCell = row.querySelector('td:nth-child(2)');
+            if (!lvlCell) return;
+            const lvlText = lvlCell.textContent.trim();
+            if (!level) { row.style.display = ''; return; }
+            // Match abbreviated level text
+            const match =
+                (level === 'Senior Batch'         && lvlText === 'SB') ||
+                (level === 'IGF & IYF Coordinator' && lvlText === 'IGF & IYF') ||
+                (level === 'ICF Coordinator'       && lvlText === 'ICF');
+            row.style.display = match ? '' : 'none';
+        });
+    }
+
+    if (panel === 'usermgmt') {
+        // Filter user cards by level
+        const cards = document.querySelectorAll('#admin-users-list .user-card, #admin-users-list .admin-user-card');
+        cards.forEach(card => {
+            const meta = card.querySelector('.user-meta')?.textContent || '';
+            if (!level) { card.style.display = ''; return; }
+            const match =
+                (level === 'Senior Batch'          && meta.includes('Senior Batch')) ||
+                (level === 'IGF & IYF Coordinator' && meta.includes('IGF')) ||
+                (level === 'ICF Coordinator'        && meta.includes('ICF'));
+            card.style.display = match ? '' : 'none';
+        });
+    }
+
+    if (panel === 'inactive') {
+        // Filter inactive cards
+        const cards = document.querySelectorAll('#admin-inactive-container .admin-user-card, #admin-inactive-container .inactive-card');
+        cards.forEach(card => {
+            const meta = card.querySelector('.inactive-meta, .user-meta')?.textContent || '';
+            if (!level) { card.style.display = ''; return; }
+            const match =
+                (level === 'Senior Batch'          && meta.includes('SB')) ||
+                (level === 'IGF & IYF Coordinator' && meta.includes('IGF')) ||
+                (level === 'ICF Coordinator'        && meta.includes('ICF'));
+            card.style.display = match ? '' : 'none';
+        });
+    }
 };
-
-async function loadSAWcr(levelFilter) {
-    const container = document.getElementById('sa-wcr-container');
-    if (!container) return;
-    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
-
-    const weeks = [];
-    for (let i = 0; i < 4; i++) {
-        const d = new Date(); d.setDate(d.getDate() - i * 7);
-        const wi = getWeekInfo(d.toISOString().split('T')[0]);
-        // Build days array Sun–Sat from sunStr
-        const days = [];
-        for (let j = 0; j < 7; j++) {
-            const dd = new Date(wi.sunStr); dd.setDate(dd.getDate() + j);
-            days.push(dd.toISOString().split('T')[0]);
-        }
-        weeks.push({ ...wi, days });
-    }
-    weeks.reverse();
-
-    const usersSnap = await db.collection('users').get();
-    let docs = usersSnap.docs
-        .filter(d => levelFilter ? (d.data().level || 'Senior Batch') === levelFilter : true)
-        .sort((a, b) => (a.data().name || '').localeCompare(b.data().name || ''));
-
-    if (!docs.length) {
-        container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No devotees found.</p>';
-        return;
-    }
-
-    const pctColor = (pct) => {
-        if (pct < 0)   return 'color:#b91c1c;font-weight:700';
-        if (pct < 20)  return 'color:#b91c1c;font-weight:700';
-        if (pct >= 70) return 'color:#15803d;font-weight:700';
-        return 'color:#1a252f';
-    };
-
-    let html = `<table class="comp-table"><thead><tr>
-        <th class="comp-th comp-th-name">Name</th>
-        <th class="comp-th">Level</th>
-        <th class="comp-th">Chanting</th>
-        ${weeks.map(w => `<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
-    </tr></thead><tbody>`;
-
-    for (const doc of docs) {
-        const u = doc.data();
-        const sSnap = await db.collection('users').doc(doc.id).collection('sadhana').get();
-        const allEnts = sSnap.docs.map(d => ({
-            date: d.id, score: d.data().totalScore || 0, sleepTime: d.data().sleepTime || ''
-        }));
-
-        const weekCells = weeks.map(wk => {
-            const todayStr = localDateStr(0);
-            let tot = 0;
-            const weekEnts = [];
-            wk.days.forEach(ds => {
-                if (ds < APP_START || ds > todayStr) return;
-                const en = allEnts.find(e => e.date === ds);
-                if (en) {
-                    tot += en.score;
-                    weekEnts.push({ id: ds, sleepTime: en.sleepTime || '', score: en.score });
-                } else if (ds < todayStr) {
-                    tot += -35;
-                }
-            });
-            const fd  = fairDenominator(wk.sunStr, weekEnts);
-            const pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
-            return `<td class="comp-td" style="${pctColor(pct)}">${pct}%</td>`;
-        });
-
-        const lvl = (u.level || 'SB').replace(' Coordinator', '').replace('Senior Batch', 'SB');
-        html += `<tr>
-            <td class="comp-td comp-name">${u.name || '—'}</td>
-            <td class="comp-td comp-meta">${lvl}</td>
-            <td class="comp-td comp-meta">${u.chantingCategory || '—'}</td>
-            ${weekCells.join('')}
-        </tr>`;
-    }
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-
-async function loadSAIndividual(levelFilter) {
-    const listEl = document.getElementById('sa-users-list');
-    if (!listEl) return;
-    listEl.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
-
-    const usersSnap = await db.collection('users').get();
-    let users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (levelFilter) users = users.filter(u => (u.level || 'Senior Batch') === levelFilter);
-    users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    if (!users.length) {
-        listEl.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">No devotees found.</p>';
-        return;
-    }
-
-    listEl.innerHTML = users.map(u => {
-        const safe = (u.name || 'Unknown').replace(/'/g, "\'");
-        const lvl  = (u.level || 'N/A').replace(' Coordinator', '');
-        return `<div class="admin-user-card" data-name="${(u.name || '').toLowerCase()}">
-            <div class="user-info-row">
-                <div>
-                    <div class="user-name-text">${u.name || 'Unknown'}</div>
-                    <div class="user-meta">${lvl} · ${u.chantingCategory || 'N/A'} · ${u.exactRounds || '?'} rounds</div>
-                </div>
-                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-                    <button onclick="openUserModal('${u.id}','${safe}')" class="btn-secondary btn-sm">History</button>
-                    <button onclick="downloadUserExcel('${u.id}','${safe}')" class="btn-success btn-sm">&#11015; Excel</button>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-async function loadSAInactive(levelFilter) {
-    const container = document.getElementById('sa-inactive-container');
-    if (!container) return;
-    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
-
-    const today = new Date();
-    const usersSnap = await db.collection('users').get();
-    let users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (levelFilter) users = users.filter(u => (u.level || 'Senior Batch') === levelFilter);
-
-    const results = [];
-    for (const u of users) {
-        let streak = 0;
-        for (let i = 1; i <= 30; i++) {
-            const d  = new Date(today); d.setDate(d.getDate() - i);
-            const ds = d.toISOString().split('T')[0];
-            if (ds < APP_START) break;
-            const snap = await db.collection('users').doc(u.id).collection('sadhana').doc(ds).get();
-            if (snap.exists) break;
-            streak++;
-        }
-        if (streak >= 2) results.push({ ...u, missedDays: streak });
-    }
-    results.sort((a, b) => b.missedDays - a.missedDays);
-
-    if (!results.length) {
-        container.innerHTML = '<div class="card" style="text-align:center;color:#15803d;padding:20px;">🎉 All devotees are active!</div>';
-        return;
-    }
-
-    const grouped = { 4: [], 3: [], 2: [] };
-    results.forEach(u => {
-        if (u.missedDays >= 4) grouped[4].push(u);
-        else if (u.missedDays === 3) grouped[3].push(u);
-        else grouped[2].push(u);
-    });
-
-    const labels = { 4: '🔴 4+ Days Inactive', 3: '🟠 3 Days Inactive', 2: '🟡 2 Days Inactive' };
-    let html = '';
-    [4, 3, 2].forEach(k => {
-        if (!grouped[k].length) return;
-        html += `<h4 style="color:#555;font-size:13px;margin:14px 0 8px;">${labels[k]} (${grouped[k].length})</h4>`;
-        grouped[k].forEach(u => {
-            const lvl = (u.level || 'SB').replace(' Coordinator', '').replace('Senior Batch', 'SB');
-            html += `<div class="admin-user-card inactive-card">
-                <div class="user-info-row">
-                    <div>
-                        <div class="user-name-text">${u.name || 'Unknown'}</div>
-                        <div class="inactive-meta">${lvl} · <strong>${u.missedDays} days missed</strong></div>
-                    </div>
-                </div>
-            </div>`;
-        });
-    });
-    container.innerHTML = html;
-}
 
 window.switchTab = (t) => {
     // Hide ALL panels including admin-panel
@@ -1092,6 +941,7 @@ window.filterInactive = (minDays, btn) => {
 
 let adminPanelLoaded = false;
 window.openAdminDrawer = () => {
+    if (isSuperAdmin()) return; // superAdmin uses direct tabs, no drawer
     document.getElementById('admin-drawer').classList.add('open');
     document.getElementById('admin-drawer-overlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
