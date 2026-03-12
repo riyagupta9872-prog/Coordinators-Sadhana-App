@@ -490,9 +490,10 @@ function initDashboard() {
         // Load admin panel with WCR active
         switchTab('admin');
         setTimeout(() => {
-            selectAdminSection('reports', document.querySelector('.sa-tab-btn.active'));
+            const firstSABtn = document.querySelector('.sa-tab-btn');
+            selectAdminSection('reports', firstSABtn);
             loadAdminPanel();
-        }, 50);
+        }, 100);
     } else {
         document.getElementById('user-nav-tabs').style.display = '';
         document.getElementById('sa-nav-tabs').style.display   = 'none';
@@ -972,7 +973,8 @@ window.closeAdminDrawer = () => {
 window.selectAdminSection = (section, btn) => {
     // Switch active nav item
     document.querySelectorAll('.drawer-nav-item').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    document.querySelectorAll('.sa-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
     // Switch content panel
     document.querySelectorAll('.admin-sub-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const panel = document.getElementById('admin-sub-' + section);
