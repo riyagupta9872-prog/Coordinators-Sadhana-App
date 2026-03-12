@@ -473,7 +473,7 @@ window.saLvlFilter = (panel, level, btn) => {
         document.querySelectorAll('#admin-users-list .user-card').forEach(card => {
             if (!level) { card.style.display = ''; return; }
             const meta = card.querySelector('.sa-user-meta')?.textContent || '';
-            row.style.display = meta.includes(level) ? '' : 'none';
+            card.style.display = meta.includes(level) ? '' : 'none';
         });
     }
     if (panel === 'inactive') {
