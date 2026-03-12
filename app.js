@@ -66,7 +66,7 @@ function isPastDate(dateStr) {
     return dateStr < localDateStr(0);
 }
 
-// ─── SCORING ENGINE (shared between submit & edit) ───────
+// ─── SCORING ENGINE ───────────────────────────────────────
 function calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level) {
     const sc = { sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 };
     const slpM = t2m(slp, true);
@@ -94,7 +94,7 @@ function calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 4. EXCEL DOWNLOAD  (with profile header + formatting)
+// 4. EXCEL DOWNLOAD
 // ═══════════════════════════════════════════════════════════
 function xlsxSave(wb, filename) {
     try {
@@ -110,7 +110,6 @@ function xlsxSave(wb, filename) {
     }
 }
 
-// Helper: set cell style (bold, fill, font color, alignment, border)
 function styleCell(ws, cellRef, opts = {}) {
     if (!ws[cellRef]) ws[cellRef] = { v:'', t:'s' };
     ws[cellRef].s = {
@@ -126,7 +125,6 @@ function styleCell(ws, cellRef, opts = {}) {
     };
 }
 
-// XLSX column index → letter(s) (0=A, 25=Z, 26=AA, 27=AB …)
 function colLetter(n) {
     let s = '';
     n++;
@@ -141,25 +139,19 @@ function colLetter(n) {
 window.downloadUserExcel = async (userId, userName) => {
     if (typeof XLSX === 'undefined') { alert('Excel library not loaded. Please refresh.'); return; }
     try {
-        // Fetch user profile
         const uDoc = await db.collection('users').doc(userId).get();
         const uData = uDoc.exists ? uDoc.data() : {};
-
         const snap = await db.collection('users').doc(userId).collection('sadhana').get();
         if (snap.empty) { alert('No sadhana data found for this user.'); return; }
-
         const weeksData = {};
         snap.forEach(doc => {
             const wi = getWeekInfo(doc.id);
             if (!weeksData[wi.sunStr]) weeksData[wi.sunStr] = { label:wi.label, sunStr:wi.sunStr, days:{} };
             weeksData[wi.sunStr].days[doc.id] = doc.data();
         });
-
         const sortedWeeks = Object.keys(weeksData).sort((a,b) => b.localeCompare(a));
         const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const COLS = 19; // A to S
-
-        // ── PROFILE HEADER (rows 0-6) ─────────────────────
+        const COLS = 19;
         const today = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
         const profileRows = [
             ['SADHANA TRACKER — INDIVIDUAL REPORT', ...Array(COLS-1).fill('')],
@@ -169,43 +161,33 @@ window.downloadUserExcel = async (userId, userName) => {
             ['Chanting Level',uData.chantingCategory|| 'N/A',    ...Array(COLS-2).fill('')],
             ['Exact Rounds',  uData.exactRounds     || 'N/A',    ...Array(COLS-2).fill('')],
             ['Downloaded On', today,                              ...Array(COLS-2).fill('')],
-            ['', ...Array(COLS-1).fill('')],  // spacer
+            ['', ...Array(COLS-1).fill('')],
         ];
-
         const dataArray = [...profileRows];
-        const PROFILE_ROWS = profileRows.length; // = 8
-
-        // Track row positions for styling
-        const styleMap = {}; // rowIndex → 'weekHeader' | 'colHeader' | 'total' | 'summary' | 'data' | 'nr'
-
+        const PROFILE_ROWS = profileRows.length;
+        const styleMap = {};
         sortedWeeks.forEach((sunStr, wi) => {
             const week   = weeksData[sunStr];
-            const wRow   = dataArray.length; // week header row
-
+            const wRow   = dataArray.length;
             dataArray.push([`WEEK: ${week.label}`,...Array(COLS-1).fill('')]);
             styleMap[wRow] = 'weekHeader';
-
-            const chRow  = dataArray.length; // column header row
+            const chRow  = dataArray.length;
             dataArray.push(['Date','Bed','M','Wake','M','Chant','M','Read(m)','M','Hear(m)','M','Seva(m)','M','Notes(m)','M','DaySleep(m)','M','Total','%']);
             styleMap[chRow] = 'colHeader';
-
             let T = { sl:0,wu:0,ch:0,rd:0,hr:0,sv:0,nt:0,ds:0, rdm:0,hrm:0,svm:0,ntm:0,dsm:0, tot:0 };
             const wStart = new Date(week.sunStr);
-
             for (let i = 0; i < 7; i++) {
                 const cd  = new Date(wStart); cd.setDate(cd.getDate()+i);
                 const ds  = cd.toISOString().split('T')[0];
                 const lbl = `${DAY[i]} ${String(cd.getDate()).padStart(2,'0')}`;
                 const e   = week.days[ds] || getNRData(ds);
                 const dRow = dataArray.length;
-
                 T.sl+=e.scores?.sleep??0; T.wu+=e.scores?.wakeup??0; T.ch+=e.scores?.chanting??0;
                 T.rd+=e.scores?.reading??0; T.hr+=e.scores?.hearing??0; T.sv+=e.scores?.service??0;
                 T.nt+=e.scores?.notes??0;  T.ds+=e.scores?.daySleep??0;
                 T.rdm+=e.readingMinutes||0; T.hrm+=e.hearingMinutes||0;
                 T.svm+=e.serviceMinutes||0; T.ntm+=e.notesMinutes||0;
                 T.dsm+=e.daySleepMinutes||0; T.tot+=e.totalScore??0;
-
                 dataArray.push([
                     lbl,
                     e.sleepTime||'NR',    e.scores?.sleep??0,
@@ -220,123 +202,72 @@ window.downloadUserExcel = async (userId, userName) => {
                 ]);
                 styleMap[dRow] = (e.sleepTime === 'NR') ? 'nr' : 'data';
             }
-
             const fd      = fairDenominator(week.sunStr, Object.entries(week.days).map(([id,d])=>({id,sleepTime:d.sleepTime||''})));
             const pct     = Math.round((T.tot/fd)*100);
             const totRow  = dataArray.length;
             dataArray.push(['WEEKLY TOTAL','',T.sl,'',T.wu,'',T.ch,T.rdm,T.rd,T.hrm,T.hr,T.svm,T.sv,T.ntm,T.nt,T.dsm,T.ds,T.tot,pct+'%']);
             styleMap[totRow] = 'total';
-
             const sumRow  = dataArray.length;
             dataArray.push([`WEEKLY %: ${T.tot} / ${fd} = ${pct}%`,...Array(COLS-1).fill('')]);
             styleMap[sumRow] = 'summary';
-
             if (wi < sortedWeeks.length-1) {
                 dataArray.push(Array(COLS).fill(''));
                 dataArray.push(Array(COLS).fill(''));
             }
         });
-
-        // ── BUILD WORKSHEET ───────────────────────────────
         const ws = XLSX.utils.aoa_to_sheet(dataArray);
-
-        // Column widths
         ws['!cols'] = [10,8,4,8,4,8,4,9,4,9,4,9,4,9,4,11,4,8,6].map(w=>({wch:w}));
-
-        // ── MERGES ────────────────────────────────────────
         const merges = [];
-        // Profile title spans all columns
         merges.push({s:{r:0,c:0}, e:{r:0,c:COLS-1}});
-        // Profile rows: label in col 0, value merged cols 1-18
         for (let r=2;r<=6;r++) merges.push({s:{r,c:1}, e:{r,c:COLS-1}});
-
-        // Week & summary row merges
         Object.entries(styleMap).forEach(([rStr, type]) => {
             const r = parseInt(rStr);
-            if (type==='weekHeader' || type==='summary') {
-                merges.push({s:{r,c:0}, e:{r,c:COLS-1}});
-            }
+            if (type==='weekHeader' || type==='summary') merges.push({s:{r,c:0}, e:{r,c:COLS-1}});
         });
         ws['!merges'] = merges;
-
-        // ── CELL STYLES ───────────────────────────────────
-        // Profile title
         styleCell(ws, 'A1', { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', sz:13, align:'center' });
-
-        // Profile label cells (col A, rows 3-7)
         for (let r=2;r<=6;r++) {
             styleCell(ws, `A${r+1}`, { bold:true, fill:'EBF3FB', align:'left' });
             styleCell(ws, `B${r+1}`, { align:'left' });
         }
-
-        // Data rows styling
         Object.entries(styleMap).forEach(([rStr, type]) => {
             const r    = parseInt(rStr);
-            const rNum = r + 1; // 1-indexed for cell refs
-
+            const rNum = r + 1;
             if (type === 'weekHeader') {
-                for (let c=0;c<COLS;c++) {
-                    const ref = `${colLetter(c)}${rNum}`;
-                    styleCell(ws, ref, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', sz:12, align:'center' });
-                }
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', sz:12, align:'center' });
             } else if (type === 'colHeader') {
-                for (let c=0;c<COLS;c++) {
-                    const ref = `${colLetter(c)}${rNum}`;
-                    styleCell(ws, ref, { bold:true, fill:'2E86C1', fontColor:'FFFFFF', sz:10, align:'center' });
-                }
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'2E86C1', fontColor:'FFFFFF', sz:10, align:'center' });
             } else if (type === 'total') {
-                for (let c=0;c<COLS;c++) {
-                    const ref = `${colLetter(c)}${rNum}`;
-                    styleCell(ws, ref, { bold:true, fill:'D5E8F7', align:'center' });
-                }
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'D5E8F7', align:'center' });
             } else if (type === 'summary') {
-                for (let c=0;c<COLS;c++) {
-                    const ref = `${colLetter(c)}${rNum}`;
-                    styleCell(ws, ref, { bold:true, fill:'EBF3FB', fontColor:'1A3C5E', align:'center' });
-                }
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'EBF3FB', fontColor:'1A3C5E', align:'center' });
             } else if (type === 'nr') {
-                // NR row — light red background
-                for (let c=0;c<COLS;c++) {
-                    const ref = `${colLetter(c)}${rNum}`;
-                    styleCell(ws, ref, { fill:'FDE8E8', fontColor:'C0392B', align:'center' });
-                }
-                // Date col left aligned
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { fill:'FDE8E8', fontColor:'C0392B', align:'center' });
                 if (ws[`A${rNum}`]) ws[`A${rNum}`].s.alignment.horizontal = 'left';
             } else if (type === 'data') {
-                // Date col
                 styleCell(ws, `A${rNum}`, { align:'left' });
-                // Score columns (M cols): C,E,G,I,K,M,O,Q = col indices 2,4,6,8,10,12,14,16
                 const scoreCols = [2,4,6,8,10,12,14,16];
                 for (let c=0;c<COLS;c++) {
                     const ref  = `${colLetter(c)}${rNum}`;
                     const cell = ws[ref];
                     if (!cell) continue;
                     if (scoreCols.includes(c) || c===17) {
-                        // Score cell — conditional color
                         const val = typeof cell.v === 'number' ? cell.v : parseFloat(cell.v)||0;
-                        const fill  = val >= 20 ? 'D5F5E3'   // green
-                                    : val >= 10 ? 'FEF9E7'   // yellow
-                                    : val >=  0 ? 'FAD7A0'   // orange
-                                    :             'FADBD8';   // red
+                        const fill  = val >= 20 ? 'D5F5E3' : val >= 10 ? 'FEF9E7' : val >= 0 ? 'FAD7A0' : 'FADBD8';
                         const fColor = val < 0 ? 'C0392B' : '1A252F';
                         styleCell(ws, ref, { fill, fontColor:fColor, align:'center' });
                     } else {
                         styleCell(ws, ref, { align:'center' });
                     }
                 }
-                // Total col (R=index 17) — bold
                 const totRef = `R${rNum}`;
                 if (ws[totRef]) ws[totRef].s.font.bold = true;
             }
         });
-
-        // Freeze top 8 rows (profile) + column A
         ws['!freeze'] = { xSplit:1, ySplit:PROFILE_ROWS, topLeftCell:'B9' };
-
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sadhana_Weekly');
         xlsxSave(wb, `${userName.replace(/\s+/g,'_')}_Sadhana_Weekly.xlsx`);
-
     } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
 };
 
@@ -346,29 +277,18 @@ window.downloadMasterReport = async () => {
         const usersSnap = await db.collection('users').get();
         const cats = visibleCategories();
         const userData = [];
-        // Use Map: sunStr → label  (sunStr = YYYY-MM-DD, sorts correctly)
         const weekMap = new Map();
-
         for (const uDoc of usersSnap.docs) {
             const u = uDoc.data();
             if (!cats.includes(u.level||'Senior Batch')) continue;
             const sSnap = await uDoc.ref.collection('sadhana').get();
             const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0}));
-            entries.forEach(en => {
-                const wi = getWeekInfo(en.date);
-                weekMap.set(wi.sunStr, wi.label);
-            });
+            entries.forEach(en => { const wi = getWeekInfo(en.date); weekMap.set(wi.sunStr, wi.label); });
             userData.push({ user:u, entries });
         }
         userData.sort((a,b)=>(a.user.name||'').localeCompare(b.user.name||''));
-
-        // Sort weeks by sunStr descending (newest first) — YYYY-MM-DD sorts perfectly
-        const allWeeks = Array.from(weekMap.entries())
-            .sort((a,b) => b[0].localeCompare(a[0]))
-            .map(([sunStr, label]) => ({ sunStr, label }));
-
+        const allWeeks = Array.from(weekMap.entries()).sort((a,b) => b[0].localeCompare(a[0])).map(([sunStr, label]) => ({ sunStr, label }));
         const rows = [['User Name','Position Level','Chanting Category',...allWeeks.map(w=>w.label.replace('_',' '))]];
-
         userData.forEach(({user,entries}) => {
             const row = [user.name, user.level||'Senior Batch', user.chantingCategory||'Level-1'];
             allWeeks.forEach(({ sunStr }) => {
@@ -387,25 +307,14 @@ window.downloadMasterReport = async () => {
             });
             rows.push(row);
         });
-
         const ws = XLSX.utils.aoa_to_sheet(rows);
-
-        // Style header row
         const hCols = rows[0].length;
         for (let c = 0; c < hCols; c++) {
-            const ref = `${colLetter(c)}1`;
-            styleCell(ws, ref, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', sz:11, align: c===0 ? 'left' : 'center' });
+            styleCell(ws, `${colLetter(c)}1`, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', sz:11, align: c===0 ? 'left' : 'center' });
         }
-
-        // Style data rows with matching colors
         for (let r = 1; r < rows.length; r++) {
             const stripeBg = r % 2 === 0 ? 'F8FAFC' : 'FFFFFF';
-            // Name, level, chanting cols
-            for (let c = 0; c < 3; c++) {
-                const ref = `${colLetter(c)}${r+1}`;
-                styleCell(ws, ref, { fill: stripeBg, align:'left', bold: c===0 });
-            }
-            // Week pct cols
+            for (let c = 0; c < 3; c++) styleCell(ws, `${colLetter(c)}${r+1}`, { fill: stripeBg, align:'left', bold: c===0 });
             for (let c = 3; c < rows[r].length; c++) {
                 const ref  = `${colLetter(c)}${r+1}`;
                 const cell = ws[ref];
@@ -413,20 +322,17 @@ window.downloadMasterReport = async () => {
                 const raw  = parseInt(String(cell.v).replace('%','').replace('(','').replace(')','')) || 0;
                 const isNeg = String(cell.v).includes('(');
                 const pct  = isNeg ? -Math.abs(raw) : raw;
-                let fill = stripeBg, fontColor = '1A252F'; let bold = false;
+                let fill = stripeBg, fontColor = '1A252F', bold = false;
                 if (pct < 0)   { fill = 'FFFDE7'; fontColor = 'B91C1C'; bold = true; }
                 else if (pct < 20) { fill = 'FFFDE7'; fontColor = 'B91C1C'; bold = true; }
                 else if (pct >= 70){ fontColor = '15803D'; bold = true; }
                 styleCell(ws, ref, { fill, fontColor, bold, align:'center' });
             }
         }
-
         ws['!cols'] = [{ wch:22 }, { wch:16 }, { wch:12 }, ...Array(allWeeks.length).fill({ wch:18 })];
-
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Master_Report');
         xlsxSave(wb, 'Master_Sadhana_Report.xlsx');
-
     } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
 };
 
@@ -435,20 +341,13 @@ window.downloadMasterReport = async () => {
 // ═══════════════════════════════════════════════════════════
 let _profileUnsub = null;
 auth.onAuthStateChanged((user) => {
-    // Unsubscribe previous profile listener
     if (_profileUnsub) { _profileUnsub(); _profileUnsub = null; }
-
     if (user) {
         currentUser = user;
         let _dashboardInited = false;
-
-        // Real-time profile listener — updates instantly when admin changes role
         _profileUnsub = db.collection('users').doc(user.uid).onSnapshot(docSnap => {
             if (!docSnap.exists) { showSection('profile'); return; }
-
-            const prevLevel = userProfile ? userProfile.level : null;
             userProfile = docSnap.data();
-
             if (!userProfile.level) {
                 document.getElementById('profile-title').textContent    = 'Complete Your Profile';
                 document.getElementById('profile-subtitle').textContent = 'Please fill in your details to continue';
@@ -456,12 +355,10 @@ auth.onAuthStateChanged((user) => {
                 showSection('profile');
                 return;
             }
-
             if (!_dashboardInited) {
                 _dashboardInited = true;
                 initDashboard();
             } else {
-                // Profile updated in background — refresh fields instantly
                 refreshFormFields();
             }
         });
@@ -472,6 +369,9 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════
+// 6. INIT DASHBOARD — permanent, clean logic
+// ═══════════════════════════════════════════════════════════
 function initDashboard() {
     const roleLabel = isSuperAdmin() ? '👑 Super Admin'
                     : isCategoryAdmin() ? `🛡️ Admin — ${userProfile.adminCategory}`
@@ -480,27 +380,32 @@ function initDashboard() {
     document.getElementById('user-role-display').textContent = roleLabel;
     showSection('dashboard');
 
+    const userTabs = document.getElementById('user-nav-tabs');
+    const saTabs   = document.getElementById('sa-nav-tabs');
+    const adminBtn = document.getElementById('admin-menu-btn');
+
     if (isSuperAdmin()) {
-        // Show SA tabs, hide user tabs + gear btn
-        document.getElementById('user-nav-tabs').style.display = 'none';
-        document.getElementById('sa-nav-tabs').style.display   = '';
-        document.getElementById('admin-menu-btn').classList.add('hidden');
-        // Add class to body for CSS filter visibility
-        document.body.classList.add('super-admin-view');
-        // Load admin panel with WCR active
+        // SuperAdmin: show SA tabs, hide regular tabs, hide gear btn
+        if (userTabs) userTabs.style.display = 'none';
+        if (saTabs)   saTabs.style.display   = '';
+        if (adminBtn) adminBtn.classList.add('hidden');
+        // Switch to admin panel, load data, show WCR by default
         switchTab('admin');
-        setTimeout(() => {
-            const firstSABtn = document.querySelector('.sa-tab-btn');
-            selectAdminSection('reports', firstSABtn);
-            loadAdminPanel();
-        }, 100);
+        adminPanelLoaded = true;
+        loadAdminPanel();
+        // Show WCR sub-panel
+        document.querySelectorAll('.admin-sub-panel').forEach(p => {
+            p.classList.remove('active'); p.classList.add('hidden');
+        });
+        const wcr = document.getElementById('admin-sub-reports');
+        if (wcr) { wcr.classList.remove('hidden'); wcr.classList.add('active'); }
+        // Show level filter bars
+        document.querySelectorAll('.sa-lvl-bar').forEach(b => b.style.display = 'flex');
     } else {
-        document.getElementById('user-nav-tabs').style.display = '';
-        document.getElementById('sa-nav-tabs').style.display   = 'none';
-        document.body.classList.remove('super-admin-view');
-        if (isAnyAdmin()) {
-            document.getElementById('admin-menu-btn').classList.remove('hidden');
-        }
+        // Regular user or category admin
+        if (userTabs) userTabs.style.display = '';
+        if (saTabs)   saTabs.style.display   = 'none';
+        if (isAnyAdmin() && adminBtn) adminBtn.classList.remove('hidden');
         switchTab('sadhana');
         setupDateSelect();
         refreshFormFields();
@@ -509,74 +414,9 @@ function initDashboard() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 6. NAVIGATION
+// 7. NAVIGATION
 // ═══════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════
-// SUPER ADMIN — section switch + filters
-// ═══════════════════════════════════════
-window.switchSASection = (section, btn) => {
-    // Update tab buttons
-    document.querySelectorAll('.sa-tab-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    // Use existing selectAdminSection to show correct sub-panel
-    selectAdminSection(section, btn || document.querySelector('.sa-tab-btn'));
-};
-
-window.applyLevelFilter = (panel, level, btn) => {
-    // Update filter buttons
-    const filterBar = document.getElementById('filter-' + panel);
-    if (filterBar) filterBar.querySelectorAll('.sa-filter-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-
-    if (panel === 'reports') {
-        // Filter comparative table rows
-        const rows = document.querySelectorAll('#comp-perf-table tbody tr');
-        rows.forEach(row => {
-            const lvlCell = row.querySelector('td:nth-child(2)');
-            if (!lvlCell) return;
-            const lvlText = lvlCell.textContent.trim();
-            if (!level) { row.style.display = ''; return; }
-            // Match abbreviated level text
-            const match =
-                (level === 'Senior Batch'         && lvlText === 'SB') ||
-                (level === 'IGF & IYF Coordinator' && lvlText === 'IGF & IYF') ||
-                (level === 'ICF Coordinator'       && lvlText === 'ICF');
-            row.style.display = match ? '' : 'none';
-        });
-    }
-
-    if (panel === 'usermgmt') {
-        // Filter user cards by level
-        const cards = document.querySelectorAll('#admin-users-list .user-card, #admin-users-list .admin-user-card');
-        cards.forEach(card => {
-            const meta = card.querySelector('.user-meta')?.textContent || '';
-            if (!level) { card.style.display = ''; return; }
-            const match =
-                (level === 'Senior Batch'          && meta.includes('Senior Batch')) ||
-                (level === 'IGF & IYF Coordinator' && meta.includes('IGF')) ||
-                (level === 'ICF Coordinator'        && meta.includes('ICF'));
-            card.style.display = match ? '' : 'none';
-        });
-    }
-
-    if (panel === 'inactive') {
-        // Filter inactive cards
-        const cards = document.querySelectorAll('#admin-inactive-container .admin-user-card, #admin-inactive-container .inactive-card');
-        cards.forEach(card => {
-            const meta = card.querySelector('.inactive-meta, .user-meta')?.textContent || '';
-            if (!level) { card.style.display = ''; return; }
-            const match =
-                (level === 'Senior Batch'          && meta.includes('SB')) ||
-                (level === 'IGF & IYF Coordinator' && meta.includes('IGF')) ||
-                (level === 'ICF Coordinator'        && meta.includes('ICF'));
-            card.style.display = match ? '' : 'none';
-        });
-    }
-};
-
 window.switchTab = (t) => {
-    // Hide ALL panels including admin-panel
     ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
@@ -586,7 +426,6 @@ window.switchTab = (t) => {
     if (panel) panel.classList.add('active');
     const btn = document.querySelector(`.tab-btn[onclick*="'${t}'"]`);
     if (btn) btn.classList.add('active');
-
     if (t === 'reports')  loadReports(currentUser.uid, 'weekly-reports-container');
     if (t === 'progress') loadMyProgressChart('daily');
 };
@@ -598,24 +437,125 @@ function showSection(sec) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 7. REPORTS TABLE
+// 8. SUPER ADMIN: Tab switching + Level filters + UAC sheet
+// ═══════════════════════════════════════════════════════════
+
+// SA tab buttons (WCR / Individual Reports / Inactive Devotees)
+window.saTab = (section, btn) => {
+    document.querySelectorAll('.sa-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.admin-sub-panel').forEach(p => {
+        p.classList.remove('active'); p.classList.add('hidden');
+    });
+    const panel = document.getElementById('admin-sub-' + section);
+    if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+};
+
+// Level filter buttons
+window.saLvlFilter = (panel, level, btn) => {
+    const bar = btn ? btn.closest('.sa-lvl-bar') : null;
+    if (bar) bar.querySelectorAll('.sa-lvl-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    if (panel === 'reports') {
+        document.querySelectorAll('#comp-perf-table tbody tr').forEach(row => {
+            if (!level) { row.style.display = ''; return; }
+            const cell = row.querySelector('td:nth-child(2)');
+            const txt  = cell ? cell.textContent.trim() : '';
+            row.style.display = (
+                (level === 'SB'      && txt === 'SB')       ||
+                (level === 'IGF'     && txt === 'IGF & IYF') ||
+                (level === 'ICF'     && txt === 'ICF')
+            ) ? '' : 'none';
+        });
+    }
+    if (panel === 'usermgmt') {
+        document.querySelectorAll('#admin-users-list .user-card').forEach(card => {
+            if (!level) { card.style.display = ''; return; }
+            const meta = card.querySelector('.sa-user-meta')?.textContent || '';
+            row.style.display = meta.includes(level) ? '' : 'none';
+        });
+    }
+    if (panel === 'inactive') {
+        document.querySelectorAll('#admin-inactive-container .inactive-card').forEach(card => {
+            if (!level) { card.style.display = ''; return; }
+            const meta = card.querySelector('.inactive-meta')?.textContent || '';
+            card.style.display = meta.includes(level) ? '' : 'none';
+        });
+    }
+};
+
+// ── User Action Sheet (Individual Reports) ──────────────────
+let _uacUID = null, _uacName = null;
+
+window.openUAC = (uid, name, level, chanting, rounds, role) => {
+    _uacUID  = uid;
+    _uacName = name;
+    document.getElementById('uac-name').textContent = name;
+    document.getElementById('uac-sub').textContent  = level + ' · ' + chanting + ' · ' + rounds + ' rounds';
+
+    const roleWrap = document.getElementById('uac-role-wrap');
+    if (isSuperAdmin()) {
+        let opts = '<option value="" disabled selected>Select…</option>';
+        if (role === 'superAdmin') {
+            opts += '<option value="demote">🚫 Revoke Super Admin</option>';
+        } else if (role === 'admin') {
+            opts += '<option value="superAdmin">👑 Make Super Admin</option><option value="sb">⭐ Shift to Senior Batch</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF & IYF Coordinator">🛡️ Admin — IGF & IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option><option value="demote">🚫 Revoke Admin</option>';
+        } else {
+            opts += '<option value="superAdmin">👑 Make Super Admin</option><option value="sb">⭐ Shift to Senior Batch</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF & IYF Coordinator">🛡️ Admin — IGF & IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option>';
+        }
+        document.getElementById('uac-role-sel').innerHTML = opts;
+        roleWrap.style.display = '';
+    } else {
+        roleWrap.style.display = 'none';
+    }
+    document.getElementById('uac-sheet').classList.add('open');
+    document.getElementById('uac-overlay').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeUAC = () => {
+    document.getElementById('uac-sheet').classList.remove('open');
+    document.getElementById('uac-overlay').classList.add('hidden');
+    document.body.style.overflow = '';
+};
+
+window.uacHistory  = () => { closeUAC(); openUserModal(_uacUID, _uacName); };
+window.uacExcel    = () => { closeUAC(); downloadUserExcel(_uacUID, _uacName); };
+window.uacProgress = () => { closeUAC(); openProgressModal(_uacUID, _uacName); };
+window.uacRoleChange = async (sel) => {
+    const val = sel.value; if (!val) return;
+    await handleRoleDropdown(_uacUID, { value: val });
+    sel.value = '';
+    closeUAC();
+    adminPanelLoaded = false;
+    loadAdminPanel();
+};
+window.uacRemove = async () => {
+    if (!confirm('Remove ' + _uacName + '? This cannot be undone.')) return;
+    try {
+        await db.collection('users').doc(_uacUID).delete();
+        closeUAC();
+        alert('✅ User removed.');
+        adminPanelLoaded = false;
+        loadAdminPanel();
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+// ═══════════════════════════════════════════════════════════
+// 9. REPORTS TABLE
 // ═══════════════════════════════════════════════════════════
 const APP_START = '2026-02-12';
 
-// Fair denominator: 160 × days elapsed in week (past days + today if submitted)
 function fairDenominator(sunStr, weekData) {
-    // Count days from week start (Sunday) up to today
-    // Skip pre-APP_START days, skip future days
-    // Today counted only if submitted
     const today = localDateStr(0);
     let days = 0;
     for (let i = 0; i < 7; i++) {
         const d = new Date(sunStr); d.setDate(d.getDate() + i);
         const ds = d.toISOString().split('T')[0];
-        if (ds < APP_START) continue;          // skip pre-app days
-        if (ds > today) break;                 // future day — stop
+        if (ds < APP_START) continue;
+        if (ds > today) break;
         if (ds === today) {
-            // count today only if submitted (not NR)
             const submitted = weekData && weekData.find(e => e.id === ds && e.sleepTime !== 'NR');
             if (!submitted) break;
         }
@@ -628,7 +568,6 @@ function loadReports(userId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
     if (activeListener) { activeListener(); activeListener = null; }
-
     activeListener = db.collection('users').doc(userId).collection('sadhana')
         .onSnapshot(snap => {
             const weeksList = [];
@@ -638,13 +577,11 @@ function loadReports(userId, containerId) {
             }
             const weeks = {};
             weeksList.forEach(w => { weeks[w.label] = {range:w.label, sunStr:w.sunStr, data:[], total:0}; });
-
             snap.forEach(doc => {
                 if (doc.id < APP_START) return;
                 const data = doc.data(); const wk = getWeekInfo(doc.id);
                 if (weeks[wk.label]) { weeks[wk.label].data.push({id:doc.id,...data}); weeks[wk.label].total+=data.totalScore||0; }
             });
-
             weeksList.forEach(wi => {
                 const wk = weeks[wi.label];
                 let curr = new Date(wi.sunStr);
@@ -656,7 +593,6 @@ function loadReports(userId, containerId) {
                     curr.setDate(curr.getDate()+1);
                 }
             });
-
             container.innerHTML = '';
             weeksList.forEach(wi => {
                 const wk     = weeks[wi.label];
@@ -665,8 +601,6 @@ function loadReports(userId, containerId) {
                 const wkColor = wk.total < 0 ? '#dc2626' : wkPct < 30 ? '#d97706' : '#16a34a';
                 const div    = document.createElement('div'); div.className='week-card';
                 const bodyId = containerId.replace(/[^a-zA-Z0-9]/g,'') + '-wb-' + wi.sunStr;
-
-                // Score cell styling — matches comparative table rules
                 const scoreStyle = (v) => {
                     if (v < 0)  return 'background:#FFFDE7;color:#b91c1c;font-weight:700;';
                     if (v < 10) return 'background:#FFFDE7;color:#b91c1c;font-weight:700;';
@@ -674,8 +608,6 @@ function loadReports(userId, containerId) {
                     return 'color:#1a252f;';
                 };
                 const scoreVal = (v) => v < 0 ? `(${v})` : `${v}`;
-
-                // Total score cell styling
                 const totalStyle = (v) => {
                     if (v < 0)   return 'background:#FFFDE7;color:#b91c1c;font-weight:700;';
                     if (v < 32)  return 'background:#FFFDE7;color:#b91c1c;font-weight:700;';
@@ -683,8 +615,6 @@ function loadReports(userId, containerId) {
                     return 'font-weight:600;color:#1a252f;';
                 };
                 const totalVal = (v) => v < 0 ? `(${v})` : `${v}`;
-
-                // Build table rows — include edit button for super admin in modal
                 const rowsHtml = wk.data.sort((a,b)=>b.id.localeCompare(a.id)).map((e, ri) => {
                     const isNR     = e.sleepTime === 'NR';
                     const stripeBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
@@ -695,10 +625,8 @@ function loadReports(userId, containerId) {
                     const editBtn = isSuperAdmin()
                         ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button>`
                         : '';
-
                     const sc = e.scores || {};
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
-
                     return `<tr style="background:${rowBg};">
                         <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}</td>
                         <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
@@ -714,10 +642,7 @@ function loadReports(userId, containerId) {
                         ${isSuperAdmin() ? `<td style="padding:2px 4px;">${editBtn}</td>` : ''}
                     </tr>`;
                 }).join('');
-
-                // Extra header col for edit button
                 const editThCol = isSuperAdmin() ? '<th></th>' : '';
-
                 div.innerHTML = `
                     <div class="week-header" onclick="document.getElementById('${bodyId}').classList.toggle('open')">
                         <span style="white-space:nowrap;">📅 ${wk.range.replace('_',' ')}</span>
@@ -741,7 +666,7 @@ function loadReports(userId, containerId) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 8. PROGRESS CHARTS
+// 10. PROGRESS CHARTS
 // ═══════════════════════════════════════════════════════════
 let myChartInstance    = null;
 let modalChartInstance = null;
@@ -755,20 +680,18 @@ async function fetchChartData(userId, view) {
     snap.forEach(doc => {
         if (doc.id >= APP_START) allEntries.push({ date: doc.id, score: doc.data().totalScore || 0 });
     });
-
     if (view === 'daily') {
         const labels = [], data = [];
         for (let i = 27; i >= 0; i--) {
             const ds    = localDateStr(i);
             if (ds < APP_START) continue;
             const entry = allEntries.find(e => e.date === ds);
-            if (i === 0 && !entry) continue; // skip today if not yet submitted
+            if (i === 0 && !entry) continue;
             labels.push(ds.split('-').slice(1).reverse().join('/'));
             data.push(entry ? entry.score : -35);
         }
         return { labels, data, label:'Daily Score', max:160, color:'#3498db' };
     }
-
     if (view === 'weekly') {
         const labels = [], data = [];
         const todayStr = localDateStr(0);
@@ -790,18 +713,11 @@ async function fetchChartData(userId, view) {
         }
         return { labels, data, label:'Weekly Score', max:1120, color:'#27ae60' };
     }
-
     if (view === 'monthly') {
         const monthMap = {};
-        allEntries.forEach(en => {
-            const ym = en.date.substring(0,7);
-            monthMap[ym] = (monthMap[ym]||0) + en.score;
-        });
+        allEntries.forEach(en => { const ym = en.date.substring(0,7); monthMap[ym] = (monthMap[ym]||0) + en.score; });
         const sorted = Object.keys(monthMap).sort();
-        const labels = sorted.map(ym => {
-            const [y,m] = ym.split('-');
-            return `${new Date(y,m-1).toLocaleString('en-GB',{month:'short'})} ${y}`;
-        });
+        const labels = sorted.map(ym => { const [y,m] = ym.split('-'); return `${new Date(y,m-1).toLocaleString('en-GB',{month:'short'})} ${y}`; });
         return { labels, data: sorted.map(k=>monthMap[k]), label:'Monthly Score', max:null, color:'#8b5cf6' };
     }
 }
@@ -878,14 +794,13 @@ window.setModalChartView = async (view, btn) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 9. SADHANA FORM SCORING  (with sleep time warning)
+// 11. SADHANA FORM
 // ═══════════════════════════════════════════════════════════
 document.getElementById('sadhana-form').onsubmit = async (e) => {
     e.preventDefault();
     const date  = document.getElementById('sadhana-date').value;
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
-
     const level = userProfile.level || 'Senior Batch';
     let slp     = document.getElementById('sleep-time').value;
     const wak   = document.getElementById('wakeup-time').value;
@@ -895,26 +810,16 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const sMin  = parseInt(document.getElementById('service-mins')?.value)||0;
     const nMin  = parseInt(document.getElementById('notes-mins')?.value)||0;
     const dsMin = parseInt(document.getElementById('day-sleep-minutes').value)||0;
-
-    // ── Sleep time sanity check ──────────────────────────
-    // If sleep time is between 04:00–20:00 it's likely a mistake (meant to enter night time)
     if (slp) {
         const [sh] = slp.split(':').map(Number);
         if (sh >= 4 && sh <= 20) {
             const goAhead = confirm(
-                `⚠️ Bed Time Warning\n\n` +
-                `You entered "${slp}" as bed time.\n` +
-                `This looks like a daytime hour.\n\n` +
-                `Did you mean night time? e.g. 23:00 instead of 11:00?\n\n` +
-                `Tap OK if "${slp}" is correct.\n` +
-                `Tap Cancel to go back and fix it.`
+                `⚠️ Bed Time Warning\n\nYou entered "${slp}" as bed time.\nThis looks like a daytime hour.\n\nDid you mean night time? e.g. 23:00 instead of 11:00?\n\nTap OK if "${slp}" is correct.\nTap Cancel to go back and fix it.`
             );
             if (!goAhead) return;
         }
     }
-
     const { sc, total, dayPercent } = calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level);
-
     await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).set({
         sleepTime:slp, wakeupTime:wak, chantingTime:chn,
         readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
@@ -928,25 +833,23 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 10. ADMIN PANEL
+// 12. ADMIN PANEL
 // ═══════════════════════════════════════════════════════════
-
 window.filterInactive = (minDays, btn) => {
     document.querySelectorAll('.inactive-filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const body = document.getElementById('inactive-cards-body');
-    if (body && window._buildInactiveCards) {
-        body.innerHTML = window._buildInactiveCards(minDays);
-    }
+    if (body && window._buildInactiveCards) body.innerHTML = window._buildInactiveCards(minDays);
 };
 
 let adminPanelLoaded = false;
+
 window.openAdminDrawer = () => {
-    if (isSuperAdmin()) return; // superAdmin uses direct tabs, no drawer
+    // Only category admins use the drawer — superAdmin has direct tabs
+    if (isSuperAdmin()) return;
     document.getElementById('admin-drawer').classList.add('open');
     document.getElementById('admin-drawer-overlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    // Show admin panel, hide others
     ['sadhana-panel','reports-panel','progress-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
@@ -954,7 +857,6 @@ window.openAdminDrawer = () => {
     const ap = document.getElementById('admin-panel');
     if (ap) ap.classList.add('active');
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    // Ensure reports sub-panel is shown by default
     document.querySelectorAll('.admin-sub-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const defaultPanel = document.getElementById('admin-sub-reports');
     if (defaultPanel) { defaultPanel.classList.remove('hidden'); defaultPanel.classList.add('active'); }
@@ -971,15 +873,11 @@ window.closeAdminDrawer = () => {
 };
 
 window.selectAdminSection = (section, btn) => {
-    // Switch active nav item
     document.querySelectorAll('.drawer-nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.sa-tab-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    // Switch content panel
     document.querySelectorAll('.admin-sub-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const panel = document.getElementById('admin-sub-' + section);
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
-    // Close drawer
     closeAdminDrawer();
 };
 
@@ -988,19 +886,20 @@ window.filterAdminUsers = () => {
     const category = document.getElementById('admin-category-filter')?.value || '';
     const cards    = document.querySelectorAll('#admin-users-list .user-card');
     cards.forEach(card => {
-        const name = (card.querySelector('.user-name')?.textContent || '').toLowerCase();
-        const meta = (card.querySelector('.user-meta')?.textContent || '');
+        const name = (card.querySelector('.user-list-name')?.textContent || card.querySelector('.user-name')?.textContent || '').toLowerCase();
+        const meta = (card.querySelector('.sa-user-meta')?.textContent || card.querySelector('.user-meta')?.textContent || '');
         const matchName = !query    || name.includes(query);
         const matchCat  = !category || meta.includes(category);
         card.style.display = (matchName && matchCat) ? '' : 'none';
     });
 };
+
 async function loadAdminPanel() {
-    const tableBox        = document.getElementById('admin-comparative-reports-container');
-    const usersList       = document.getElementById('admin-users-list');
-    const inactiveCont    = document.getElementById('admin-inactive-container');
-    tableBox.innerHTML    = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
-    usersList.innerHTML   = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+    const tableBox     = document.getElementById('admin-comparative-reports-container');
+    const usersList    = document.getElementById('admin-users-list');
+    const inactiveCont = document.getElementById('admin-inactive-container');
+    tableBox.innerHTML  = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+    usersList.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
     if (inactiveCont) inactiveCont.innerHTML = '';
 
     const weeks = [];
@@ -1016,7 +915,6 @@ async function loadAdminPanel() {
         .filter(doc => cats.includes(doc.data().level||'Senior Batch'))
         .sort((a,b) => (a.data().name||'').localeCompare(b.data().name||''));
 
-    // Color helper for percentage cells
     const pctStyle = (pct) => {
         if (pct < 0)   return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`(${pct}%)` };
         if (pct < 20)  return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`${pct}%`   };
@@ -1041,21 +939,14 @@ async function loadAdminPanel() {
         : `🛡️ <strong>Category Admin</strong> — Managing: <strong>${userProfile.adminCategory}</strong>`;
     usersList.appendChild(banner);
 
-    // Category filter — only visible to super admin
     const catFilter = document.getElementById('admin-category-filter');
     if (catFilter) catFilter.style.display = isSuperAdmin() ? '' : 'none';
     const searchInput = document.getElementById('admin-search-input');
     if (searchInput) searchInput.value = '';
     if (catFilter) catFilter.value = '';
 
-    // ── INACTIVE DEVOTEES SECTION ─────────────────────────
-    // Calculate consecutive missing days (excluding today) per user
-    // We check up to 30 days back to find max consecutive streak
-
-    // Inactive list will be populated inside main user loop below
-    // Each entry: { id, name, level, lastDate, missedDays }
     const inactiveUsers = [];
-    const userSadhanaCache = new Map(); // uid → entries array (reuse in comparative table)
+    const userSadhanaCache = new Map();
 
     for (const uDoc of filtered) {
         const u     = uDoc.data();
@@ -1063,13 +954,12 @@ async function loadAdminPanel() {
         const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
         userSadhanaCache.set(uDoc.id, ents);
 
-        // Calculate consecutive missing days from yesterday backwards (excl. today)
         const submittedDates = new Set(sSnap.docs.map(d => d.id).filter(d => d >= APP_START));
         let missedDays = 0;
         for (let i = 1; i <= 30; i++) {
             const ds = localDateStr(i);
             if (ds < APP_START) break;
-            if (submittedDates.has(ds)) break; // streak broken
+            if (submittedDates.has(ds)) break;
             missedDays++;
         }
         if (missedDays >= 2) {
@@ -1080,9 +970,10 @@ async function loadAdminPanel() {
 
         const rowIdx = filtered.indexOf(uDoc);
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
         tHtml += `<tr style="background:${stripeBg}">
             <td class="comp-td comp-name">${u.name}</td>
-            <td class="comp-td comp-meta">${(u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB')}</td>
+            <td class="comp-td comp-meta">${lvlShort}</td>
             <td class="comp-td comp-meta">${u.chantingCategory||'N/A'}</td>`;
         weeks.forEach(w => {
             let tot=0; let curr=new Date(w.sunStr);
@@ -1090,16 +981,10 @@ async function loadAdminPanel() {
             const todayComp = localDateStr(0);
             for (let i=0;i<7;i++) {
                 const ds=curr.toISOString().split('T')[0];
-                if (ds < APP_START) { curr.setDate(curr.getDate()+1); continue; } // skip pre-app
-                if (ds > todayComp) { curr.setDate(curr.getDate()+1); continue; } // skip future
+                if (ds < APP_START || ds > todayComp) { curr.setDate(curr.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
-                if (en) {
-                    tot += en.score;
-                    weekEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score});
-                } else if (ds < todayComp) {
-                    tot += -35; // past day NR
-                }
-                // today not submitted — skip (not in fd either)
+                if (en) { tot += en.score; weekEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
+                else if (ds < todayComp) { tot += -35; }
                 curr.setDate(curr.getDate()+1);
             }
             const fd = fairDenominator(w.sunStr, weekEnts);
@@ -1110,64 +995,33 @@ async function loadAdminPanel() {
         });
         tHtml += '</tr>';
 
+        // ── User list item (clickable → UAC sheet) ──
         const card = document.createElement('div');
         card.className = 'user-card';
-
         let badge = '';
-        if (u.role==='superAdmin') badge=`<span class="role-badge" style="background:#7e22ce;color:white;">👑 Super Admin</span>`;
-        else if (u.role==='admin') badge=`<span class="role-badge" style="background:#d97706;color:white;">🛡️ ${u.adminCategory||''}</span>`;
-
+        if (u.role==='superAdmin') badge = `<span class="role-badge" style="background:#7e22ce;color:white;">👑 SA</span>`;
+        else if (u.role==='admin') badge = `<span class="role-badge" style="background:#d97706;color:white;">🛡️ Admin</span>`;
         const safe = (u.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
-        let roleDropdown = '';
-        if (isSuperAdmin()) {
-            let opts = '<option value="" disabled selected>Change Role…</option>';
-            if (u.role==='superAdmin') {
-                opts += '<option value="demote">🚫 Revoke Super Admin</option>';
-            } else if (u.role==='admin') {
-                opts += `<option value="superAdmin">👑 Make Super Admin</option>
-                    <option value="sb">⭐ Shift to Senior Batch</option>
-                    <option value="cat:Senior Batch">🛡️ Make Admin — Senior Batch</option>
-                    <option value="cat:IGF & IYF Coordinator">🛡️ Make Admin — IGF & IYF</option>
-                    <option value="cat:ICF Coordinator">🛡️ Make Admin — ICF</option>
-                    <option value="demote">🚫 Revoke Admin</option>`;
-            } else {
-                opts += `<option value="superAdmin">👑 Make Super Admin</option>
-                    <option value="sb">⭐ Shift to Senior Batch</option>
-                    <option value="cat:Senior Batch">🛡️ Make Admin — Senior Batch</option>
-                    <option value="cat:IGF & IYF Coordinator">🛡️ Make Admin — IGF & IYF</option>
-                    <option value="cat:ICF Coordinator">🛡️ Make Admin — ICF</option>`;
-            }
-            roleDropdown = `<select onchange="handleRoleDropdown('${uDoc.id}',this)"
-                style="padding:6px 10px;border-radius:8px;border:1px solid #ddd;font-size:12px;height:34px;background:white;cursor:pointer;flex:1;min-width:150px;max-width:200px;margin:0;">
-                ${opts}</select>`;
-        }
-
+        const roleStr = u.role || 'user';
         card.innerHTML = `
-            <div class="user-card-top">
-                <span class="user-name">${u.name}</span>${badge}
-                <div class="user-meta">${u.level||'Senior Batch'} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
-            </div>
-            <div class="user-actions">
-                <button onclick="openUserModal('${uDoc.id}','${safe}')" class="btn-primary btn-sm">History</button>
-                <button onclick="downloadUserExcel('${uDoc.id}','${safe}')" class="btn-success btn-sm">Excel</button>
-                <button onclick="openProgressModal('${uDoc.id}','${safe}')" class="btn-purple btn-sm">Progress</button>
-                ${roleDropdown}
+            <div class="user-list-item" onclick="openUAC('${uDoc.id}','${safe}','${lvlShort}','${u.chantingCategory||'N/A'}','${u.exactRounds||'?'}','${roleStr}')">
+                <div>
+                    <div class="user-list-name">${u.name} ${badge}</div>
+                    <div class="sa-user-meta">${lvlShort} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
+                </div>
+                <span class="user-list-chevron">›</span>
             </div>`;
         usersList.appendChild(card);
     }
-    // ── Now build inactive section (inactiveUsers is fully populated) ──
-    inactiveUsers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
-    // Store globally for filter buttons to use
+    // ── Inactive devotees ──
+    inactiveUsers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     window._inactiveUsers = inactiveUsers;
 
     const inactiveSection = document.createElement('div');
     inactiveSection.className = 'inactive-section';
 
-    // Build cards HTML for a given filter
     const buildInactiveCards = (minDays) => {
-        // minDays: 2 = exactly 2, 3 = exactly 3, 4 = 4 and above
         const filtered2 = minDays === 4
             ? inactiveUsers.filter(u => u.missedDays >= 4)
             : inactiveUsers.filter(u => u.missedDays === minDays);
@@ -1177,7 +1031,7 @@ async function loadAdminPanel() {
             const lastTxt = u.lastDate
                 ? `Last entry: ${u.lastDate.split('-').slice(1).join(' ')}`
                 : 'No entries yet';
-            const safe = (u.name||'').replace(/'/g,"\'");
+            const safe = (u.name||'').replace(/'/g,"\\'");
             const dot = u.missedDays >= 4 ? '🔴' : u.missedDays === 3 ? '🟠' : '🟡';
             return `<div class="inactive-card">
                 <div class="inactive-card-left">
@@ -1208,13 +1062,9 @@ async function loadAdminPanel() {
             ${buildInactiveCards(4)}
         </div>`;
 
-    // Store builder for filter function
     window._buildInactiveCards = buildInactiveCards;
-    const inactiveContainer = document.getElementById('admin-inactive-container');
-    if (inactiveContainer) inactiveContainer.innerHTML = '';
-    if (inactiveContainer) inactiveContainer.appendChild(inactiveSection);
+    if (inactiveCont) { inactiveCont.innerHTML = ''; inactiveCont.appendChild(inactiveSection); }
 
-    // Update inactive tab badge count — show 4+ days count
     const tabBadge = document.getElementById('inactive-tab-badge');
     if (tabBadge) tabBadge.textContent = count4plus > 0 ? count4plus : '';
 
@@ -1226,9 +1076,9 @@ window.handleRoleDropdown = async (uid, sel) => {
     if (!val) return;
     let newRole, cat=null, msg='';
     if (val==='superAdmin')          { newRole='superAdmin'; msg='👑 Make this user SUPER ADMIN?\nFull access to all categories.'; }
-    else if (val==='sb')             { newRole='user'; cat=null; msg='⭐ Shift this devotee to SENIOR BATCH?\nThey will be moved out of their current batch.'; }
+    else if (val==='sb')             { newRole='user'; cat=null; msg='⭐ Shift this devotee to SENIOR BATCH?'; }
     else if (val.startsWith('cat:')) { newRole='admin'; cat=val.slice(4); msg=`🛡️ Assign as Category Admin for:\n"${cat}"?`; }
-    else if (val==='demote')         { newRole='user';  msg='🚫 Revoke all admin access?'; }
+    else if (val==='demote')         { newRole='user'; msg='🚫 Revoke all admin access?'; }
     else return;
     if (!confirm(msg)) return;
     if (!confirm('Final confirmation?')) return;
@@ -1237,11 +1087,12 @@ window.handleRoleDropdown = async (uid, sel) => {
     await db.collection('users').doc(uid).update(updateData);
     alert(val === 'sb' ? '✅ Devotee shifted to Senior Batch!' : '✅ Role updated!');
     if (window._sendRoleNotification) window._sendRoleNotification(uid, '', val, cat);
+    adminPanelLoaded = false;
     loadAdminPanel();
 };
 
 // ═══════════════════════════════════════════════════════════
-// 11. SUPER ADMIN — EDIT SADHANA
+// 13. SUPER ADMIN — EDIT SADHANA
 // ═══════════════════════════════════════════════════════════
 let editModalUserId = null;
 let editModalDate   = null;
@@ -1249,23 +1100,16 @@ let editModalOriginal = null;
 
 window.openEditModal = async (userId, date) => {
     if (!isSuperAdmin()) return;
-
     editModalUserId = userId;
     editModalDate   = date;
-
     const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
     const docSnap = await docRef.get();
     if (!docSnap.exists) { alert('Entry not found.'); return; }
-
     const d = docSnap.data();
-    editModalOriginal = { ...d }; // snapshot of original before edit
-
-    // Fetch user's level for scoring context
+    editModalOriginal = { ...d };
     const uSnap   = await db.collection('users').doc(userId).get();
     const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
-
-    // Populate fields
     document.getElementById('edit-sleep-time').value      = d.sleepTime      || '';
     document.getElementById('edit-wakeup-time').value     = d.wakeupTime     || '';
     document.getElementById('edit-chanting-time').value   = d.chantingTime   || '';
@@ -1275,14 +1119,9 @@ window.openEditModal = async (userId, date) => {
     document.getElementById('edit-notes-mins').value      = d.notesMinutes    || 0;
     document.getElementById('edit-day-sleep-mins').value  = d.daySleepMinutes || 0;
     document.getElementById('edit-reason').value          = '';
-
-    // Get user name from admin panel context
     const uData = uSnap.exists ? uSnap.data() : {};
     document.getElementById('edit-modal-title').textContent = `✏️ Edit Sadhana — ${uData.name||userId} · ${date}`;
-
-    // Show/hide notes field based on level
     document.getElementById('edit-notes-row').classList.toggle('hidden', uLevel !== 'Senior Batch');
-
     updateEditPreview();
     document.getElementById('edit-sadhana-modal').classList.remove('hidden');
 };
@@ -1302,7 +1141,6 @@ window.updateEditPreview = () => {
     const nMin  = parseInt(document.getElementById('edit-notes-mins').value)||0;
     const dsMin = parseInt(document.getElementById('edit-day-sleep-mins').value)||0;
     const level = document.getElementById('edit-user-level').value || 'Senior Batch';
-
     if (!slp || !wak || !chn) return;
     const { total, dayPercent } = calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level);
     const prev = document.getElementById('edit-score-preview');
@@ -1312,7 +1150,6 @@ window.updateEditPreview = () => {
 
 window.submitEditSadhana = async () => {
     if (!isSuperAdmin() || !editModalUserId || !editModalDate) return;
-
     const slp   = document.getElementById('edit-sleep-time').value;
     const wak   = document.getElementById('edit-wakeup-time').value;
     const chn   = document.getElementById('edit-chanting-time').value;
@@ -1323,61 +1160,33 @@ window.submitEditSadhana = async () => {
     const dsMin = parseInt(document.getElementById('edit-day-sleep-mins').value)||0;
     const reason= document.getElementById('edit-reason').value.trim();
     const level = document.getElementById('edit-user-level').value || 'Senior Batch';
-
     if (!slp||!wak||!chn) { alert('Please fill all time fields.'); return; }
     if (!confirm(`Save changes to ${editModalDate}?\nThis will update scores and log edit history.`)) return;
-
     const { sc, total, dayPercent } = calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level);
-
-    // Build edit log entry — store original data
-    // NOTE: serverTimestamp() cannot be used inside arrayUnion nested objects
-    // So we use JS Date string for the log entry timestamp instead
     const now = new Date().toISOString();
     const editLog = {
-        editedBy:    userProfile.name,
-        editedByUid: currentUser.uid,
-        editedAt:    now,
-        reason:      reason || 'No reason provided',
+        editedBy: userProfile.name, editedByUid: currentUser.uid, editedAt: now,
+        reason: reason || 'No reason provided',
         original: {
-            sleepTime:       editModalOriginal.sleepTime       || 'NR',
-            wakeupTime:      editModalOriginal.wakeupTime      || 'NR',
-            chantingTime:    editModalOriginal.chantingTime    || 'NR',
-            readingMinutes:  editModalOriginal.readingMinutes  || 0,
-            hearingMinutes:  editModalOriginal.hearingMinutes  || 0,
-            serviceMinutes:  editModalOriginal.serviceMinutes  || 0,
-            notesMinutes:    editModalOriginal.notesMinutes    || 0,
-            daySleepMinutes: editModalOriginal.daySleepMinutes || 0,
-            totalScore:      editModalOriginal.totalScore      || 0,
-            dayPercent:      editModalOriginal.dayPercent      || 0
+            sleepTime: editModalOriginal.sleepTime||'NR', wakeupTime: editModalOriginal.wakeupTime||'NR',
+            chantingTime: editModalOriginal.chantingTime||'NR',
+            readingMinutes: editModalOriginal.readingMinutes||0, hearingMinutes: editModalOriginal.hearingMinutes||0,
+            serviceMinutes: editModalOriginal.serviceMinutes||0, notesMinutes: editModalOriginal.notesMinutes||0,
+            daySleepMinutes: editModalOriginal.daySleepMinutes||0,
+            totalScore: editModalOriginal.totalScore||0, dayPercent: editModalOriginal.dayPercent||0
         }
     };
-
     try {
         const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate);
-
-        // Step 1: Update all field values (serverTimestamp safe here at top level)
         await docRef.update({
-            sleepTime:       slp,
-            wakeupTime:      wak,
-            chantingTime:    chn,
-            readingMinutes:  rMin,
-            hearingMinutes:  hMin,
-            serviceMinutes:  sMin,
-            notesMinutes:    nMin,
-            daySleepMinutes: dsMin,
-            scores:          sc,
-            totalScore:      total,
-            dayPercent:      dayPercent,
-            editedAt:        firebase.firestore.FieldValue.serverTimestamp(),
-            editedBy:        userProfile.name
+            sleepTime:slp, wakeupTime:wak, chantingTime:chn,
+            readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
+            notesMinutes:nMin, daySleepMinutes:dsMin,
+            scores:sc, totalScore:total, dayPercent,
+            editedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            editedBy: userProfile.name
         });
-
-        // Step 2: Append to editLog array separately
-        // (arrayUnion cannot contain serverTimestamp inside nested objects — so we use ISO string in editLog)
-        await docRef.update({
-            editLog: firebase.firestore.FieldValue.arrayUnion(editLog)
-        });
-
+        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) });
         closeEditModal();
         alert(`✅ Sadhana updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
@@ -1386,20 +1195,13 @@ window.submitEditSadhana = async () => {
     }
 };
 
-// Show edit history modal — full field-by-field comparison
 window.showEditHistory = async (evt, date, userId) => {
     evt.stopPropagation();
     const docSnap = await db.collection('users').doc(userId).collection('sadhana').doc(date).get();
     if (!docSnap.exists) return;
     const cur = docSnap.data();
     const log = cur.editLog || [];
-
-    if (log.length === 0) {
-        alert('No edit history found.');
-        return;
-    }
-
-    // Field definitions — label, key in original object, key in current doc
+    if (log.length === 0) { alert('No edit history found.'); return; }
     const FIELDS = [
         { label: 'Bed Time',      oKey: 'sleepTime',       cKey: 'sleepTime'       },
         { label: 'Wake Up',       oKey: 'wakeupTime',      cKey: 'wakeupTime'      },
@@ -1411,42 +1213,25 @@ window.showEditHistory = async (evt, date, userId) => {
         { label: 'Day Sleep(min)',oKey: 'daySleepMinutes', cKey: 'daySleepMinutes' },
         { label: 'Total Score',   oKey: 'totalScore',      cKey: 'totalScore'      },
     ];
-
     let html = '';
     log.forEach((entry, i) => {
-        // Parse timestamp
         let ts = 'Unknown time';
         if (entry.editedAt) {
-            const d = typeof entry.editedAt === 'string'
-                ? new Date(entry.editedAt)
-                : entry.editedAt.toDate?.();
-            if (d) ts = d.toLocaleString('en-IN', {
-                day:'2-digit', month:'short', year:'numeric',
-                hour:'2-digit', minute:'2-digit'
-            });
+            const d = typeof entry.editedAt === 'string' ? new Date(entry.editedAt) : entry.editedAt.toDate?.();
+            if (d) ts = d.toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
         }
-
         html += `<div class="eh-entry">`;
         html += `<div class="eh-header">✏️ Edit ${i+1} &nbsp;|&nbsp; <span class="eh-who">${entry.editedBy||'Admin'}</span> &nbsp;|&nbsp; <span class="eh-when">${ts}</span></div>`;
         html += `<div class="eh-reason">📝 ${entry.reason || 'No reason provided'}</div>`;
-
         if (entry.original) {
             const o = entry.original;
-            // Only show fields that actually changed
-            const changedFields = FIELDS.filter(f => {
-                const oval = o[f.oKey] ?? '—';
-                const cval = cur[f.cKey] ?? '—';
-                return String(oval) !== String(cval);
-            });
-
+            const changedFields = FIELDS.filter(f => String(o[f.oKey]??'—') !== String(cur[f.cKey]??'—'));
             if (changedFields.length === 0) {
                 html += `<div class="eh-nochange">No field changes detected in this edit.</div>`;
             } else {
                 html += `<table class="eh-table"><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>`;
                 changedFields.forEach(f => {
-                    const oval = o[f.oKey] ?? '—';
-                    const cval = cur[f.cKey] ?? '—';
-                    html += `<tr><td class="eh-field">${f.label}</td><td class="eh-before">${oval}</td><td class="eh-after">${cval}</td></tr>`;
+                    html += `<tr><td class="eh-field">${f.label}</td><td class="eh-before">${o[f.oKey]??'—'}</td><td class="eh-after">${cur[f.cKey]??'—'}</td></tr>`;
                 });
                 html += `</tbody></table>`;
             }
@@ -1455,7 +1240,6 @@ window.showEditHistory = async (evt, date, userId) => {
         }
         html += `</div>`;
     });
-
     document.getElementById('edit-history-content').innerHTML = html;
     document.getElementById('edit-history-modal').classList.remove('hidden');
 };
@@ -1465,7 +1249,7 @@ window.closeEditHistoryModal = () => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 12. DATE SELECT & PROFILE FORM
+// 14. DATE SELECT & PROFILE FORM
 // ═══════════════════════════════════════════════════════════
 function setupDateSelect() {
     const s = document.getElementById('sadhana-date');
@@ -1482,8 +1266,6 @@ function setupDateSelect() {
     refreshFormFields();
 }
 
-
-// Show/hide Notes Revision based on Senior Batch level
 function refreshFormFields() {
     const notesArea   = document.getElementById('notes-area');
     const serviceArea = document.getElementById('service-area');
@@ -1491,6 +1273,7 @@ function refreshFormFields() {
     if (notesArea)   notesArea.classList.toggle('hidden', !isSB);
     if (serviceArea) serviceArea.classList.remove('hidden');
 }
+
 document.getElementById('profile-form').onsubmit = async (e) => {
     e.preventDefault();
     const data = {
@@ -1506,18 +1289,16 @@ document.getElementById('profile-form').onsubmit = async (e) => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 13. PASSWORD MODAL
+// 15. PASSWORD MODAL
 // ═══════════════════════════════════════════════════════════
 window.openPasswordModal = () => {
     document.getElementById('pwd-new').value     = '';
     document.getElementById('pwd-confirm').value = '';
     document.getElementById('password-modal').classList.remove('hidden');
 };
-
 window.closePasswordModal = () => {
     document.getElementById('password-modal').classList.add('hidden');
 };
-
 window.submitPasswordChange = async () => {
     const newPwd  = document.getElementById('pwd-new').value.trim();
     const confPwd = document.getElementById('pwd-confirm').value.trim();
@@ -1539,7 +1320,7 @@ window.submitPasswordChange = async () => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 14. MISC BINDINGS
+// 16. MISC BINDINGS
 // ═══════════════════════════════════════════════════════════
 document.getElementById('login-form').onsubmit = (e) => {
     e.preventDefault();
@@ -1556,12 +1337,10 @@ window.openUserModal = (id, name) => {
     document.getElementById('modal-user-name').textContent = `📋 ${name} — History`;
     loadReports(id, 'modal-report-container');
 };
-
 window.closeUserModal = () => {
     document.getElementById('user-report-modal').classList.add('hidden');
     if (activeListener) { activeListener(); activeListener = null; }
 };
-
 window.openProfileEdit = () => {
     document.getElementById('profile-title').textContent    = 'Edit Profile';
     document.getElementById('profile-subtitle').textContent = 'Update your details';
@@ -1574,7 +1353,7 @@ window.openProfileEdit = () => {
 };
 
 // ═══════════════════════════════════════════════════════════
-// 15. FORGOT PASSWORD
+// 17. FORGOT PASSWORD
 // ═══════════════════════════════════════════════════════════
 window.openForgotPassword = (e) => {
     e.preventDefault();
@@ -1592,30 +1371,22 @@ window.openForgotPassword = (e) => {
     }
 };
 
-
 // ═══════════════════════════════════════════════════════════
-// PWA — Service Worker Registration
+// 18. PWA — Service Worker
 // ═══════════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-            .then(reg => {
-                console.log('SW registered:', reg.scope);
-                window._swReg = reg;
-            })
+            .then(reg => { console.log('SW registered:', reg.scope); window._swReg = reg; })
             .catch(err => console.log('SW registration failed:', err));
     });
 }
 
 // ═══════════════════════════════════════════════════════════
-// NOTIFICATIONS SYSTEM
+// 19. NOTIFICATIONS SYSTEM
 // ═══════════════════════════════════════════════════════════
-
-// VAPID public key — replace with your actual key from Firebase Console
-// For now using a placeholder — see setup instructions
 const VAPID_PUBLIC_KEY = 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc';
 
-// Convert VAPID key to Uint8Array
 function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -1623,12 +1394,8 @@ function urlBase64ToUint8Array(base64String) {
     return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
 }
 
-// ── Request notification permission ──
 window.requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-        alert('This browser does not support notifications.');
-        return;
-    }
+    if (!('Notification' in window)) { alert('This browser does not support notifications.'); return; }
     const perm = await Notification.requestPermission();
     const btn = document.getElementById('notif-bell-btn');
     if (perm === 'granted') {
@@ -1640,68 +1407,40 @@ window.requestNotificationPermission = async () => {
     }
 };
 
-// ── Save FCM/Push token to Firestore ──
 async function saveNotificationToken() {
     if (!currentUser) return;
     try {
         const reg = window._swReg || await navigator.serviceWorker.ready;
         if (!reg.pushManager) return;
-
         let sub = await reg.pushManager.getSubscription();
         if (!sub) {
-            if (VAPID_PUBLIC_KEY === 'BBIaVXF1wlqwE_41UCqmXQpi89u0tIt5UUHjibouttw0b_BE-Xt7EmTaNaP8JY0wYH279aiWlUVSQ2w6zbr00Tc') return; // not configured yet
-            sub = await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-            });
+            if (VAPID_PUBLIC_KEY.startsWith('BBIaVXF1')) return;
+            sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
         }
-        // Save subscription to Firestore under user doc
         await db.collection('users').doc(currentUser.uid).update({
-            pushSubscription: JSON.stringify(sub),
-            notifEnabled: true,
-            notifUpdatedAt: new Date().toISOString()
+            pushSubscription: JSON.stringify(sub), notifEnabled: true, notifUpdatedAt: new Date().toISOString()
         });
-        console.log('Push subscription saved.');
-    } catch (err) {
-        console.warn('Push subscription failed:', err);
-    }
+    } catch (err) { console.warn('Push subscription failed:', err); }
 }
 
-// ── Show toast notification (in-app) ──
 function showToast(msg, type = 'info') {
     const existing = document.getElementById('sadhana-toast');
     if (existing) existing.remove();
     const toast = document.createElement('div');
     toast.id = 'sadhana-toast';
     const bg = type === 'success' ? '#16a34a' : type === 'warn' ? '#d97706' : type === 'error' ? '#dc2626' : '#1A3C5E';
-    toast.style.cssText = `
-        position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
-        background:${bg}; color:white; padding:12px 22px; border-radius:12px;
-        font-size:14px; font-weight:600; z-index:9999; box-shadow:0 4px 16px rgba(0,0,0,0.2);
-        max-width:90vw; text-align:center; transition:opacity 0.4s;
-    `;
+    toast.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:${bg};color:white;padding:12px 22px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2);max-width:90vw;text-align:center;transition:opacity 0.4s;`;
     toast.textContent = msg;
     document.body.appendChild(toast);
     setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 3500);
 }
 
-// ── In-app notification sender (for admin actions) ──
-// Called after admin does role changes, promotions etc.
 async function sendInAppNotification(userId, title, body) {
     try {
-        await db.collection('notifications').add({
-            userId,
-            title,
-            body,
-            read: false,
-            createdAt: new Date().toISOString()
-        });
-    } catch (err) {
-        console.warn('Notification save failed:', err);
-    }
+        await db.collection('notifications').add({ userId, title, body, read: false, createdAt: new Date().toISOString() });
+    } catch (err) { console.warn('Notification save failed:', err); }
 }
 
-// ── Check unread notifications for current user ──
 async function loadUserNotifications() {
     if (!currentUser) return;
     try {
@@ -1709,81 +1448,61 @@ async function loadUserNotifications() {
             .where('userId', '==', currentUser.uid)
             .where('read', '==', false)
             .orderBy('createdAt', 'desc')
-            .limit(10)
-            .get();
-
+            .limit(10).get();
         const count = snap.docs.length;
-        // Update sidebar badge
         const badge = document.getElementById('sidebar-notif-badge');
         if (badge) {
             if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
             else { badge.classList.add('hidden'); }
         }
-
         if (count > 0) {
-            // Show latest notification as toast
             const latest = snap.docs[0].data();
             showToast(`${latest.title}: ${latest.body}`, 'info');
-            // Mark all as read
             snap.docs.forEach(d => d.ref.update({ read: true }));
         }
-    } catch (err) {
-        // notifications collection may not exist yet — silent fail
-    }
+    } catch (err) { /* silent fail */ }
 }
 
-// ── Sadhana fill reminder check (runs on dashboard load) ──
 async function checkSadhanaReminder() {
     if (!currentUser) return;
     try {
         const today = localDateStr(0);
         const yesterday = localDateStr(1);
         const dayBefore = localDateStr(2);
-
-        const snap = await db.collection('users').doc(currentUser.uid)
-            .collection('sadhana')
-            .where(firebase.firestore.FieldPath.documentId(), 'in', [today, yesterday, dayBefore])
-            .get();
-
+        const snap = await db.collection('users').doc(currentUser.uid).collection('sadhana')
+            .where(firebase.firestore.FieldPath.documentId(), 'in', [today, yesterday, dayBefore]).get();
         const submitted = new Set(snap.docs.map(d => d.id));
         const missedDays = [yesterday, dayBefore].filter(d => !submitted.has(d) && d >= APP_START);
-
         if (missedDays.length >= 2 && Notification.permission === 'granted') {
-            new Notification('🙏 Sadhana Reminder', {
-                body: `You haven't filled Sadhana for ${missedDays.length} days. Please submit now.`,
-                icon: ''
-            });
+            new Notification('🙏 Sadhana Reminder', { body: `You haven't filled Sadhana for ${missedDays.length} days. Please submit now.`, icon: '' });
         }
-
-        if (missedDays.length >= 2) {
-            showToast(`⚠️ Sadhana pending for ${missedDays.length} days — please fill now!`, 'warn');
-        }
-    } catch (err) {
-        console.warn('Reminder check failed:', err);
-    }
+        if (missedDays.length >= 2) showToast(`⚠️ Sadhana pending for ${missedDays.length} days — please fill now!`, 'warn');
+    } catch (err) { console.warn('Reminder check failed:', err); }
 }
 
-// ── Hook into admin role change — send notification ──
-// Called after handleRoleDropdown updates Firestore
 window._sendRoleNotification = async (userId, userName, newRole, category) => {
     let msg = '';
     if (newRole === 'superAdmin') msg = 'You have been promoted to Super Admin!';
     else if (newRole === 'admin' && category) msg = `You have been made Admin — ${category.replace(' Coordinator','')}`;
     else if (newRole === 'user') msg = 'Your admin role has been updated.';
     else if (newRole === 'sb') msg = 'You have been moved to Senior Batch.';
-
     if (msg) await sendInAppNotification(userId, '👑 Role Update', msg);
 };
 
-// ── Init notifications on dashboard load ──
+// ── Init notifications — only show gear btn for non-superAdmin ──
 window._initNotifications = () => {
     loadUserNotifications();
     checkSadhanaReminder();
-    const adminBtn = document.getElementById('admin-menu-btn');
-    if (adminBtn && isAnyAdmin()) adminBtn.classList.remove('hidden');
+    // SuperAdmin gear btn stays hidden (handled in initDashboard)
+    if (!isSuperAdmin()) {
+        const adminBtn = document.getElementById('admin-menu-btn');
+        if (adminBtn && isAnyAdmin()) adminBtn.classList.remove('hidden');
+    }
 };
 
-// USER SIDEBAR
+// ═══════════════════════════════════════════════════════════
+// 20. USER SIDEBAR
+// ═══════════════════════════════════════════════════════════
 window.openUserSidebar = () => {
     document.getElementById('user-sidebar').classList.add('open');
     document.getElementById('sidebar-overlay').classList.add('open');
@@ -1817,7 +1536,7 @@ window.openNotificationsPanel = async () => {
         const list = document.getElementById('notifications-list');
         if (!list) return;
         if (snap.empty) { list.innerHTML = '<p style="color:gray;text-align:center;padding:20px 0;font-size:13px;">No notifications yet</p>'; return; }
-        list.innerHTML = snap.docs.map(d => { const n=d.data(); const u=!n.read; return '<div style="padding:10px 12px;border-radius:8px;margin-bottom:6px;background:'+(u?'#eff6ff':'#f9fafb')+';border-left:3px solid '+(u?'#3b82f6':'#e5e7eb')+';"><div style="font-weight:600;font-size:13px;">'+( n.title||'')+'</div><div style="font-size:12px;color:#555;margin-top:2px;">'+(n.body||'')+'</div><div style="font-size:10px;color:gray;margin-top:4px;">'+(n.createdAt||'').slice(0,10)+'</div></div>'; }).join('');
+        list.innerHTML = snap.docs.map(d => { const n=d.data(); const u=!n.read; return '<div style="padding:10px 12px;border-radius:8px;margin-bottom:6px;background:'+(u?'#eff6ff':'#f9fafb')+';border-left:3px solid '+(u?'#3b82f6':'#e5e7eb')+'"><div style="font-weight:600;font-size:13px;">'+(n.title||'')+'</div><div style="font-size:12px;color:#555;margin-top:2px;">'+(n.body||'')+'</div><div style="font-size:10px;color:gray;margin-top:4px;">'+(n.createdAt||'').slice(0,10)+'</div></div>'; }).join('');
         snap.docs.forEach(d => { if (!d.data().read) d.ref.update({read:true}); });
         const badge = document.getElementById('sidebar-notif-badge');
         if (badge) badge.classList.add('hidden');
