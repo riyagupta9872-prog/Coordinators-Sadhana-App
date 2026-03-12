@@ -735,17 +735,59 @@
             font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit;
         }
 
-        /* ── LEVEL FILTER BAR ── */
-        .sa-level-filter { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-        .sa-filter-btn {
-            width:auto; padding:5px 13px; font-size:12px; font-weight:600;
-            border-radius:20px; border:1.5px solid #ddd;
-            background:white; color:#555; cursor:pointer; margin:0;
+
+        /* ── SA level filter buttons ── */
+        .sa-lvl-bar { display:flex; }
+        .sa-lvl-btn {
+            width:auto; padding:5px 14px; font-size:12px; font-weight:600;
+            border-radius:20px; border:1.5px solid #ddd; background:white;
+            color:#555; cursor:pointer; margin:0; transition:all 0.15s;
         }
-        .sa-filter-btn.active { background:#1A3C5E; color:white; border-color:#1A3C5E; }
-        /* Only show filters for superAdmin */
-        .sa-level-filter { display:none; }
-        .super-admin-view .sa-level-filter { display:flex; }
+        .sa-lvl-btn.active { background:#1A3C5E; color:white; border-color:#1A3C5E; }
+
+        /* ── User list item (Individual Reports) ── */
+        .user-list-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:13px 16px; cursor:pointer; border-bottom:1px solid #f0f0f0;
+            -webkit-tap-highlight-color:transparent;
+        }
+        .user-list-item:active { background:#f4f7f6; }
+        .user-list-name { font-weight:700; font-size:14px; color:#1a252f; }
+        .sa-user-meta  { font-size:12px; color:#888; margin-top:2px; }
+        .user-list-chevron { font-size:22px; color:#ccc; flex-shrink:0; }
+
+        /* ── User Action Bottom Sheet ── */
+        .uac-overlay {
+            position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100;
+        }
+        .uac-sheet {
+            position:fixed; bottom:-100%; left:0; right:0; max-width:600px; margin:0 auto;
+            background:white; border-radius:20px 20px 0 0; z-index:1101;
+            transition:bottom 0.3s ease; max-height:85vh; overflow-y:auto;
+            box-shadow:0 -4px 30px rgba(0,0,0,0.15);
+        }
+        .uac-sheet.open { bottom:0; }
+        .uac-handle { width:36px; height:4px; background:#e0e0e0; border-radius:2px; margin:12px auto 4px; }
+        .uac-head {
+            padding:12px 20px 14px; border-bottom:1px solid #f0f0f0;
+            display:flex; justify-content:space-between; align-items:flex-start;
+        }
+        .uac-hname { font-size:17px; font-weight:800; color:#1a252f; }
+        .uac-hsub  { font-size:12px; color:#888; margin-top:2px; }
+        .uac-x { background:none; border:none; font-size:22px; color:#aaa; cursor:pointer; width:auto; padding:0; }
+        .uac-body { padding:10px 14px 28px; }
+        .uac-btn {
+            display:flex; align-items:center; gap:13px; width:100%;
+            padding:12px 12px; border:none; border-radius:12px; background:white;
+            font-size:15px; font-weight:600; color:#1a252f; cursor:pointer;
+            margin-bottom:4px; text-align:left;
+        }
+        .uac-btn:active { background:#f4f7f6; }
+        .uac-ico { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+        .uac-btn.danger { color:#dc2626; }
+        .uac-divider { border:none; border-top:1px solid #f0f0f0; margin:8px 0; }
+        .uac-role-label { font-size:11px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 6px; }
+        .uac-role-sel { width:100%; padding:11px 14px; border:1.5px solid #e5e7eb; border-radius:10px; font-size:14px; background:white; cursor:pointer; margin:0; }
     </style>
 </head>
 <body>
@@ -834,17 +876,17 @@
         </div>
 
         <!-- ── NAV TABS ── -->
-        <!-- User tabs (hidden for superAdmin) -->
+        <!-- Regular user tabs -->
         <div id="user-nav-tabs" class="nav-tabs" style="margin-bottom:16px;">
             <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
             <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
             <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
         </div>
-        <!-- Super Admin tabs (shown only for superAdmin) -->
+        <!-- Super Admin direct tabs (hidden for regular users) -->
         <div id="sa-nav-tabs" class="nav-tabs" style="margin-bottom:16px;display:none;">
-            <button class="sa-tab-btn tab-btn active" onclick="switchSASection('reports',this)">&#128202; WCR</button>
-            <button class="sa-tab-btn tab-btn"        onclick="switchSASection('usermgmt',this)">&#128100; Individual Reports</button>
-            <button class="sa-tab-btn tab-btn"        onclick="switchSASection('inactive',this)">&#9888; Inactive Devotees</button>
+            <button class="tab-btn sa-tab active" onclick="saTab('reports',this)">&#128202; WCR</button>
+            <button class="tab-btn sa-tab"        onclick="saTab('usermgmt',this)">&#128100; Individual Reports</button>
+            <button class="tab-btn sa-tab"        onclick="saTab('inactive',this)">&#9888; Inactive Devotees</button>
         </div>
 
         <!-- SADHANA ENTRY -->
@@ -917,15 +959,15 @@
             <div id="admin-content-area">
                 <!-- Default: Reports -->
                 <div id="admin-sub-reports" class="admin-sub-panel hidden">
-                    <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                        <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; WCR — 4-Week Performance</h3>
+                    <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                        <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; 4-Week Performance (%)</h3>
                         <button onclick="downloadMasterReport()" class="btn-success btn-sm" style="width:auto;padding:8px 18px;">&#11015; Master Excel</button>
                     </div>
-                    <div class="sa-level-filter" id="filter-reports">
-                        <button class="sa-filter-btn active" onclick="applyLevelFilter('reports','',this)">All</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('reports','Senior Batch',this)">Senior Batch</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('reports','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('reports','ICF Coordinator',this)">ICF</button>
+                    <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
+                        <button class="sa-lvl-btn active" onclick="saLvlFilter('reports','',this)">All</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','SB',this)">Senior Batch</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','ICF',this)">ICF</button>
                     </div>
                     <div class="card" style="overflow-x:auto;overflow-y:auto;max-height:70vh;">
                         <div id="admin-comparative-reports-container"></div>
@@ -934,12 +976,12 @@
 
                 <!-- User Management -->
                 <div id="admin-sub-usermgmt" class="admin-sub-panel hidden">
-                    <h3 style="margin:0 0 10px;color:var(--primary);font-size:15px;">&#128100; Individual Reports</h3>
-                    <div class="sa-level-filter" id="filter-usermgmt">
-                        <button class="sa-filter-btn active" onclick="applyLevelFilter('usermgmt','',this)">All</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('usermgmt','Senior Batch',this)">Senior Batch</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('usermgmt','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('usermgmt','ICF Coordinator',this)">ICF</button>
+                    <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128100; Individual Reports</h3>
+                    <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
+                        <button class="sa-lvl-btn active" onclick="saLvlFilter('usermgmt','',this)">All</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','SB',this)">Senior Batch</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','ICF',this)">ICF</button>
                     </div>
                     <div class="card">
                         <div class="admin-search-bar">
@@ -958,11 +1000,11 @@
                 <!-- Inactive Devotees -->
                 <div id="admin-sub-inactive" class="admin-sub-panel hidden">
                     <h3 style="margin:0 0 10px;color:var(--primary);font-size:15px;">&#9888; Inactive Devotees</h3>
-                    <div class="sa-level-filter" id="filter-inactive">
-                        <button class="sa-filter-btn active" onclick="applyLevelFilter('inactive','',this)">All</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('inactive','Senior Batch',this)">Senior Batch</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('inactive','IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
-                        <button class="sa-filter-btn" onclick="applyLevelFilter('inactive','ICF Coordinator',this)">ICF</button>
+                    <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
+                        <button class="sa-lvl-btn active" onclick="saLvlFilter('inactive','',this)">All</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','Senior Batch',this)">Senior Batch</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','ICF',this)">ICF</button>
                     </div>
                     <div id="admin-inactive-container"></div>
                 </div>
@@ -1266,5 +1308,40 @@
 </div>
 
 <script src="app.js"></script>
+
+<!-- ── User Action Bottom Sheet ── -->
+<div id="uac-overlay" class="uac-overlay hidden" onclick="closeUAC()"></div>
+<div id="uac-sheet" class="uac-sheet">
+    <div class="uac-handle"></div>
+    <div class="uac-head">
+        <div>
+            <div class="uac-hname" id="uac-name">—</div>
+            <div class="uac-hsub"  id="uac-sub">—</div>
+        </div>
+        <button class="uac-x" onclick="closeUAC()">&#10005;</button>
+    </div>
+    <div class="uac-body">
+        <button class="uac-btn" onclick="uacHistory()">
+            <div class="uac-ico" style="background:#dbeafe;">&#128203;</div><span>View History</span>
+        </button>
+        <button class="uac-btn" onclick="uacExcel()">
+            <div class="uac-ico" style="background:#dcfce7;">&#128229;</div><span>Download Excel</span>
+        </button>
+        <button class="uac-btn" onclick="uacProgress()">
+            <div class="uac-ico" style="background:#ede9fe;">&#128200;</div><span>View Progress</span>
+        </button>
+        <div id="uac-role-wrap">
+            <hr class="uac-divider">
+            <div class="uac-role-label">Change Role</div>
+            <select id="uac-role-sel" class="uac-role-sel" onchange="uacRoleChange(this)">
+                <option value="" disabled selected>Select&#8230;</option>
+            </select>
+        </div>
+        <hr class="uac-divider">
+        <button class="uac-btn danger" onclick="uacRemove()">
+            <div class="uac-ico" style="background:#fee2e2;">&#128465;&#65039;</div><span>Remove User</span>
+        </button>
+    </div>
+</div>
 </body>
 </html>
