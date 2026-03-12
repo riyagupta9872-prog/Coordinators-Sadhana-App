@@ -788,6 +788,17 @@
         .uac-divider { border:none; border-top:1px solid #f0f0f0; margin:8px 0; }
         .uac-role-label { font-size:11px; font-weight:700; color:#aaa; text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 6px; }
         .uac-role-sel { width:100%; padding:11px 14px; border:1.5px solid #e5e7eb; border-radius:10px; font-size:14px; background:white; cursor:pointer; margin:0; }
+
+        /* ── Password Eye Toggle ── */
+        .pwd-wrap { position:relative; }
+        .pwd-wrap input { padding-right:42px; }
+        .pwd-eye {
+            position:absolute; right:10px; top:50%; transform:translateY(-50%);
+            background:none; border:none; cursor:pointer; font-size:17px;
+            color:#888; padding:0; margin:0; width:auto; line-height:1;
+            display:flex; align-items:center; justify-content:center;
+        }
+        .pwd-eye:hover { color:#1A3C5E; transform:translateY(-50%); opacity:1; }
     </style>
 </head>
 <body>
@@ -799,7 +810,7 @@
         <p style="text-align:center;margin-bottom:20px;font-size:12px;color:#9ca3af;font-style:italic;letter-spacing:0.4px;">Dedicated to Guru and Gauranga</p>
         <form id="login-form">
             <input type="email"    id="login-email"    placeholder="Email" required>
-            <input type="password" id="login-password" placeholder="Password" required>
+            <div class="pwd-wrap"><input type="password" id="login-password" placeholder="Password" required><button type="button" class="pwd-eye" onclick="togglePwd('login-password',this)">👁️</button></div>
             <button type="submit" class="btn-primary" style="margin-top:10px;">Login</button>
         </form>
         <p style="text-align:center;margin-top:12px;">
@@ -1122,11 +1133,11 @@
         <div class="modal-title">🔑 Change Password</div>
         <div class="pwd-field-group">
             <label>New Password</label>
-            <input type="password" id="pwd-new" placeholder="Minimum 6 characters" autocomplete="new-password">
+            <div class="pwd-wrap"><input type="password" id="pwd-new" placeholder="Minimum 6 characters" autocomplete="new-password"><button type="button" class="pwd-eye" onclick="togglePwd('pwd-new',this)">👁️</button></div>
         </div>
         <div class="pwd-field-group">
             <label>Confirm New Password</label>
-            <input type="password" id="pwd-confirm" placeholder="Re-enter new password" autocomplete="new-password">
+            <div class="pwd-wrap"><input type="password" id="pwd-confirm" placeholder="Re-enter new password" autocomplete="new-password"><button type="button" class="pwd-eye" onclick="togglePwd('pwd-confirm',this)">👁️</button></div>
         </div>
         <button onclick="submitPasswordChange()" class="btn-primary" style="margin-top:6px;">Update Password</button>
         <button onclick="closePasswordModal()" class="btn-gray">Cancel</button>
@@ -1307,6 +1318,16 @@
     </div>
 </div>
 
+<script>
+// ── Password eye toggle ──
+window.togglePwd = (inputId, btn) => {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁️';
+};
+</script>
 <script src="app.js"></script>
 
 <!-- ── User Action Bottom Sheet ── -->
