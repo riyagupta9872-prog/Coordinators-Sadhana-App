@@ -815,6 +815,31 @@
         .btn-revoke-cell:hover { background:#6d28d9 !important; }
         /* Rejected row highlight */
         tr.rejected-row td { background:#fdf2f8 !important; }
+
+        /* ── Custom Time Picker ── */
+        .time-pick {
+            display:flex; align-items:center; gap:5px;
+            background:white; border:1px solid #ddd; border-radius:8px;
+            padding:6px 10px; width:100%; margin:5px 0;
+            transition: border-color 0.2s;
+        }
+        .time-pick:focus-within { border-color:#3498db; box-shadow:0 0 0 3px rgba(52,152,219,0.1); }
+        .time-pick input[type=number] {
+            width:42px; border:none; outline:none; font-size:15px; font-weight:600;
+            text-align:center; padding:2px 0; margin:0; background:transparent;
+            -moz-appearance:textfield; color:#1a252f;
+        }
+        .time-pick input[type=number]::-webkit-outer-spin-button,
+        .time-pick input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+        .time-pick .time-sep { font-size:16px; font-weight:700; color:#555; line-height:1; }
+        .time-pick select {
+            border:none; outline:none; font-size:13px; font-weight:700;
+            background:#f0f4f8; color:#1A3C5E; border-radius:6px;
+            padding:3px 7px; margin:0; width:auto; cursor:pointer;
+            -webkit-appearance:none; appearance:none; text-align:center;
+        }
+        .time-pick select:focus { outline:none; box-shadow:none; }
+        .time-pick .time-icon { font-size:15px; margin-right:3px; opacity:0.6; }
     </style>
 </head>
 <body>
@@ -922,13 +947,40 @@
                     <select id="sadhana-date" required></select>
 
                     <label class="form-label">Bed Time (Previous Night)</label>
-                    <input type="time" id="sleep-time" required>
+<div class="time-pick" id="sleep-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="sleep-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="sleep-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
+                        <select id="sleep-time-ampm">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
 
                     <label class="form-label">Wake Up Time</label>
-                    <input type="time" id="wakeup-time" required>
+<div class="time-pick" id="wakeup-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="wakeup-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="wakeup-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
+                        <select id="wakeup-time-ampm">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
 
                     <label class="form-label">Chanting Completed By</label>
-                    <input type="time" id="chanting-time" required>
+<div class="time-pick" id="chanting-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="chanting-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="chanting-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
+                        <select id="chanting-time-ampm">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
 
                     <label class="form-label">Reading (Pathan) — Minutes</label>
                     <input type="number" id="reading-mins" value="0" min="0" required>
@@ -1172,15 +1224,42 @@
         <div class="edit-grid">
             <div class="edit-field-group">
                 <label>Bed Time (Night)</label>
-                <input type="time" id="edit-sleep-time" oninput="updateEditPreview()">
+<div class="time-pick" id="edit-sleep-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="edit-sleep-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="edit-sleep-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
+                        <select id="edit-sleep-time-ampm" oninput="updateEditPreview()">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
             </div>
             <div class="edit-field-group">
                 <label>Wake Up Time</label>
-                <input type="time" id="edit-wakeup-time" oninput="updateEditPreview()">
+<div class="time-pick" id="edit-wakeup-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="edit-wakeup-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="edit-wakeup-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
+                        <select id="edit-wakeup-time-ampm" oninput="updateEditPreview()">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
             </div>
             <div class="edit-field-group">
                 <label>Chanting Completed By</label>
-                <input type="time" id="edit-chanting-time" oninput="updateEditPreview()">
+<div class="time-pick" id="edit-chanting-time-wrap">
+                        <span class="time-icon">🕐</span>
+                        <input type="number" id="edit-chanting-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
+                        <span class="time-sep">:</span>
+                        <input type="number" id="edit-chanting-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
+                        <select id="edit-chanting-time-ampm" oninput="updateEditPreview()">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
             </div>
             <div class="edit-field-group">
                 <label>Day Sleep (mins)</label>
