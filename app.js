@@ -618,9 +618,18 @@ function loadReports(userId, containerId) {
                 const rowsHtml = wk.data.sort((a,b)=>b.id.localeCompare(a.id)).map((e, ri) => {
                     const isNR     = e.sleepTime === 'NR';
                     const stripeBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
-                    const rowBg    = isNR ? '#fff5f5' : stripeBg;
+                    const rowBg    = e.rejected ? '#fdf2f8' : isNR ? '#fff5f5' : stripeBg;
                     const editedBadge = e.editedAt
                         ? `<span class="edited-badge" onclick="showEditHistory(event,'${e.id}','${userId}')" title="View edit history">✏️</span>`
+                        : '';
+                    const rejectedBadge = e.rejected
+                        ? `<span style="font-size:10px;background:#dc2626;color:white;border-radius:4px;padding:1px 5px;margin-left:3px;font-weight:700;">REJECTED</span>`
+                        : '';
+                    const isRejected = e.rejected === true;
+                    const rejectBtn = isSuperAdmin()
+                        ? isRejected
+                            ? `<button onclick="revokeRejection('${userId}','${e.id}')" class="btn-revoke-cell" title="Revoke rejection">↩ Revoke</button>`
+                            : `<button onclick="rejectEntry('${userId}','${e.id}')" class="btn-reject-cell" title="Reject entry">✕ Reject</button>`
                         : '';
                     const editBtn = isSuperAdmin()
                         ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button>`
@@ -628,7 +637,7 @@ function loadReports(userId, containerId) {
                     const sc = e.scores || {};
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
                     return `<tr style="background:${rowBg};">
-                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}</td>
+                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}${rejectedBadge}</td>
                         <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
                         <td style="${isNR?'color:#b91c1c;':''}">${e.wakeupTime||'NR'}</td>${mkS(sc.wakeup??0)}
                         <td>${e.chantingTime||'NR'}</td>${mkS(sc.chanting??0)}
@@ -639,7 +648,7 @@ function loadReports(userId, containerId) {
                         <td>${e.daySleepMinutes||0}m</td>${mkS(sc.daySleep??0)}
                         <td style="${totalStyle(e.totalScore??0)}">${totalVal(e.totalScore??0)}</td>
                         <td>${e.dayPercent??0}%</td>
-                        ${isSuperAdmin() ? `<td style="padding:2px 4px;">${editBtn}</td>` : ''}
+                        ${isSuperAdmin() ? `<td style="padding:2px 4px;white-space:nowrap;">${rejectBtn} ${editBtn}</td>` : ''}
                     </tr>`;
                 }).join('');
                 const editThCol = isSuperAdmin() ? '<th></th>' : '';
@@ -1098,15 +1107,86 @@ let editModalUserId = null;
 let editModalDate   = null;
 let editModalOriginal = null;
 
+
+// ═══════════════════════════════════════════════════════════
+// REJECT / REVOKE ENTRY (Super Admin)
+// ═══════════════════════════════════════════════════════════
+window.rejectEntry = async (userId, date) => {
+    if (!isSuperAdmin()) return;
+    const reason = prompt(`Reason for rejecting entry on ${date}:\n(User will get -50 penalty)`);
+    if (reason === null) return; // cancelled
+    if (!confirm(`Reject ${date} entry?\n-50 marks penalty will apply.`)) return;
+    try {
+        const docRef = db.collection('users').doc(userId).collection('sadhana').doc(date);
+        const snap   = await docRef.get();
+        if (!snap.exists) { alert('Entry not found.'); return; }
+        const orig = snap.data();
+        await docRef.update({
+            rejected: true,
+            rejectedBy: userProfile.name,
+            rejectedAt: new Date().toISOString(),
+            rejectionReason: reason || 'No reason provided',
+            originalScoreBeforeReject: orig.totalScore ?? 0,
+            originalPercentBeforeReject: orig.dayPercent ?? 0,
+            totalScore: -50,
+            dayPercent: Math.round((-50/160)*100),
+            scores: { sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
+        });
+        alert('✅ Entry rejected. -50 penalty applied.');
+        // Reload whichever report modal is open
+        if (document.getElementById('user-report-modal') && !document.getElementById('user-report-modal').classList.contains('hidden')) {
+            loadReports(userId, 'modal-report-container');
+        }
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
+window.revokeRejection = async (userId, date) => {
+    if (!isSuperAdmin()) return;
+    if (!confirm(`Revoke rejection for ${date}?\nOriginal score will be restored.`)) return;
+    try {
+        const docRef = db.collection('users').doc(userId).collection('sadhana').doc(date);
+        const snap   = await docRef.get();
+        if (!snap.exists) { alert('Entry not found.'); return; }
+        const d = snap.data();
+        const origScore = d.originalScoreBeforeReject ?? d.totalScore ?? 0;
+        const origPct   = d.originalPercentBeforeReject ?? d.dayPercent ?? 0;
+        // Recalculate proper scores from stored data
+        await docRef.update({
+            rejected: false,
+            revokedBy: userProfile.name,
+            revokedAt: new Date().toISOString(),
+            totalScore: origScore,
+            dayPercent: origPct,
+        });
+        alert('✅ Rejection revoked. Original score restored.');
+        if (document.getElementById('user-report-modal') && !document.getElementById('user-report-modal').classList.contains('hidden')) {
+            loadReports(userId, 'modal-report-container');
+        }
+    } catch(e) { alert('Error: ' + e.message); }
+};
+
 window.openEditModal = async (userId, date) => {
     if (!isSuperAdmin()) return;
     editModalUserId = userId;
     editModalDate   = date;
     const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
     const docSnap = await docRef.get();
-    if (!docSnap.exists) { alert('Entry not found.'); return; }
-    const d = docSnap.data();
-    editModalOriginal = { ...d };
+    // For NR entries (no doc exists), create a blank doc so admin can fill it
+    let d;
+    if (!docSnap.exists) {
+        // NR entry — prefill blanks, admin will fill real values
+        d = {
+            sleepTime:'', wakeupTime:'', chantingTime:'',
+            readingMinutes:0, hearingMinutes:0, serviceMinutes:0,
+            notesMinutes:0, daySleepMinutes:0,
+            totalScore:-35, dayPercent:-22,
+            scores:{ sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
+        };
+        editModalOriginal = { ...d, _wasNR: true };
+    } else {
+        d = docSnap.data();
+        editModalOriginal = { ...d };
+    }
     const uSnap   = await db.collection('users').doc(userId).get();
     const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
@@ -1178,7 +1258,10 @@ window.submitEditSadhana = async () => {
     };
     try {
         const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate);
-        await docRef.update({
+        const updateOrSet = editModalOriginal._wasNR ? 
+            (ref, data) => ref.set(data) : 
+            (ref, data) => ref.update(data);
+        await updateOrSet(docRef, {
             sleepTime:slp, wakeupTime:wak, chantingTime:chn,
             readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
             notesMinutes:nMin, daySleepMinutes:dsMin,
@@ -1186,7 +1269,7 @@ window.submitEditSadhana = async () => {
             editedAt: firebase.firestore.FieldValue.serverTimestamp(),
             editedBy: userProfile.name
         });
-        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) });
+        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog), _wasNR: firebase.firestore.FieldValue.delete() });
         closeEditModal();
         alert(`✅ Sadhana updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
@@ -1361,7 +1444,8 @@ window.openForgotPassword = (e) => {
     if (!email) return;
     if (!email.includes('@')) { alert('❌ Please enter a valid email address!'); return; }
     if (confirm(`Send password reset email to: ${email}?`)) {
-        auth.sendPasswordResetEmail(email)
+        const actionSettings = { url: window.location.href, handleCodeInApp: false };
+        auth.sendPasswordResetEmail(email, actionSettings)
             .then(() => alert(`✅ Password reset email sent to ${email}!\n\nCheck your inbox and spam folder.`))
             .catch(error => {
                 if (error.code==='auth/user-not-found') alert('❌ No account found with this email address!');
