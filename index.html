@@ -800,46 +800,25 @@
         }
         .pwd-eye:hover { color:#1A3C5E; transform:translateY(-50%); opacity:1; }
 
-        /* ── Reject / Revoke / Edit cell buttons ── */
-        .btn-reject-cell {
-            width:auto !important; padding:3px 8px !important; font-size:11px !important;
-            margin:0 2px 0 0 !important; background:#dc2626 !important; color:white !important;
-            border-radius:5px !important; font-weight:600 !important; border:none; cursor:pointer;
+        /* ── Performers Circular Chart ── */
+        .perf-ring-wrap {
+            position:relative; width:100%; display:flex;
+            flex-direction:column; align-items:center; gap:10px;
         }
-        .btn-reject-cell:hover { background:#b91c1c !important; }
-        .btn-revoke-cell {
-            width:auto !important; padding:3px 8px !important; font-size:11px !important;
-            margin:0 2px 0 0 !important; background:#7c3aed !important; color:white !important;
-            border-radius:5px !important; font-weight:600 !important; border:none; cursor:pointer;
+        .perf-rings-svg { width:100%; max-width:200px; }
+        .perf-legend { width:100%; }
+        .perf-legend-item {
+            display:flex; align-items:center; gap:8px;
+            padding:5px 0; border-bottom:1px solid #f5f5f5; cursor:default;
         }
-        .btn-revoke-cell:hover { background:#6d28d9 !important; }
-        /* Rejected row highlight */
-        tr.rejected-row td { background:#fdf2f8 !important; }
-
-        /* ── Custom Time Picker ── */
-        .time-pick {
-            display:flex; align-items:center; gap:5px;
-            background:white; border:1px solid #ddd; border-radius:8px;
-            padding:6px 10px; width:100%; margin:5px 0;
-            transition: border-color 0.2s;
+        .perf-legend-item:last-child { border-bottom:none; }
+        .perf-legend-dot {
+            width:12px; height:12px; border-radius:50%; flex-shrink:0;
         }
-        .time-pick:focus-within { border-color:#3498db; box-shadow:0 0 0 3px rgba(52,152,219,0.1); }
-        .time-pick input[type=number] {
-            width:42px; border:none; outline:none; font-size:15px; font-weight:600;
-            text-align:center; padding:2px 0; margin:0; background:transparent;
-            -moz-appearance:textfield; color:#1a252f;
-        }
-        .time-pick input[type=number]::-webkit-outer-spin-button,
-        .time-pick input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-        .time-pick .time-sep { font-size:16px; font-weight:700; color:#555; line-height:1; }
-        .time-pick select {
-            border:none; outline:none; font-size:13px; font-weight:700;
-            background:#f0f4f8; color:#1A3C5E; border-radius:6px;
-            padding:3px 7px; margin:0; width:auto; cursor:pointer;
-            -webkit-appearance:none; appearance:none; text-align:center;
-        }
-        .time-pick select:focus { outline:none; box-shadow:none; }
-        .time-pick .time-icon { font-size:15px; margin-right:3px; opacity:0.6; }
+        .perf-legend-name { font-size:13px; font-weight:700; color:#1a252f; flex:1; }
+        .perf-legend-pct  { font-size:13px; font-weight:700; }
+        .perf-legend-best { font-size:10px; color:#888; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .perf-empty { text-align:center; color:#aaa; font-size:12px; padding:20px 0; }
     </style>
 </head>
 <body>
@@ -880,8 +859,10 @@
             <label class="form-label">Chanting Category</label>
             <select id="profile-chanting" required>
                 <option value="" disabled selected>Select chanting level</option>
-                <option value="Level-1">Level-1 (9–15 Rounds)</option>
-                <option value="Level-2">Level-2 (16 Rounds)</option>
+                <option value="Level-1">Level-1 (1–4 Rounds)</option>
+                <option value="Level-2">Level-2 (5–8 Rounds)</option>
+                <option value="Level-3">Level-3 (9–15 Rounds)</option>
+                <option value="Level-4">Level-4 (16 Rounds)</option>
             </select>
 
             <label class="form-label">Current Exact Rounds</label>
@@ -947,40 +928,13 @@
                     <select id="sadhana-date" required></select>
 
                     <label class="form-label">Bed Time (Previous Night)</label>
-<div class="time-pick" id="sleep-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="sleep-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="sleep-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
-                        <select id="sleep-time-ampm">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <input type="time" id="sleep-time" required>
 
                     <label class="form-label">Wake Up Time</label>
-<div class="time-pick" id="wakeup-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="wakeup-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="wakeup-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
-                        <select id="wakeup-time-ampm">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <input type="time" id="wakeup-time" required>
 
                     <label class="form-label">Chanting Completed By</label>
-<div class="time-pick" id="chanting-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="chanting-time-hr" min="1" max="12" placeholder="HH" style="width:38px;">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="chanting-time-mn" min="0" max="59" placeholder="MM" style="width:38px;">
-                        <select id="chanting-time-ampm">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                    <input type="time" id="chanting-time" required>
 
                     <label class="form-label">Reading (Pathan) — Minutes</label>
                     <input type="number" id="reading-mins" value="0" min="0" required>
@@ -1045,6 +999,26 @@
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','SB',this)">Senior Batch</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF &amp; IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','ICF',this)">ICF</button>
+                    </div>
+                    <!-- Best & Weak Performers -->
+                    <div id="performers-section" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Best &amp; Weak Performers</h3>
+                            <div style="display:flex;gap:6px;">
+                                <button class="perf-tab-btn active" onclick="setPerfTab('weekly',this)" style="width:auto;padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;border:1.5px solid #ddd;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
+                                <button class="perf-tab-btn" onclick="setPerfTab('monthly',this)" style="width:auto;padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div class="card" style="padding:14px;">
+                                <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px;">&#127942; Top Performers</div>
+                                <div id="best-performers-chart"></div>
+                            </div>
+                            <div class="card" style="padding:14px;">
+                                <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:12px;">&#128997; Needs Attention</div>
+                                <div id="weak-performers-chart"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="card" style="overflow-x:auto;overflow-y:auto;max-height:70vh;">
                         <div id="admin-comparative-reports-container"></div>
@@ -1224,42 +1198,15 @@
         <div class="edit-grid">
             <div class="edit-field-group">
                 <label>Bed Time (Night)</label>
-<div class="time-pick" id="edit-sleep-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="edit-sleep-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="edit-sleep-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
-                        <select id="edit-sleep-time-ampm" oninput="updateEditPreview()">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                <input type="time" id="edit-sleep-time" oninput="updateEditPreview()">
             </div>
             <div class="edit-field-group">
                 <label>Wake Up Time</label>
-<div class="time-pick" id="edit-wakeup-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="edit-wakeup-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="edit-wakeup-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
-                        <select id="edit-wakeup-time-ampm" oninput="updateEditPreview()">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                <input type="time" id="edit-wakeup-time" oninput="updateEditPreview()">
             </div>
             <div class="edit-field-group">
                 <label>Chanting Completed By</label>
-<div class="time-pick" id="edit-chanting-time-wrap">
-                        <span class="time-icon">🕐</span>
-                        <input type="number" id="edit-chanting-time-hr" min="1" max="12" placeholder="HH" style="width:38px;" oninput="updateEditPreview()">
-                        <span class="time-sep">:</span>
-                        <input type="number" id="edit-chanting-time-mn" min="0" max="59" placeholder="MM" style="width:38px;" oninput="updateEditPreview()">
-                        <select id="edit-chanting-time-ampm" oninput="updateEditPreview()">
-                            <option value="AM">AM</option>
-                            <option value="PM">PM</option>
-                        </select>
-                    </div>
+                <input type="time" id="edit-chanting-time" oninput="updateEditPreview()">
             </div>
             <div class="edit-field-group">
                 <label>Day Sleep (mins)</label>
