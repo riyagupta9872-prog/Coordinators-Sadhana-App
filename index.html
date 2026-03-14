@@ -799,6 +799,22 @@
             display:flex; align-items:center; justify-content:center;
         }
         .pwd-eye:hover { color:#1A3C5E; transform:translateY(-50%); opacity:1; }
+
+        /* ── Reject / Revoke / Edit cell buttons ── */
+        .btn-reject-cell {
+            width:auto !important; padding:3px 8px !important; font-size:11px !important;
+            margin:0 2px 0 0 !important; background:#dc2626 !important; color:white !important;
+            border-radius:5px !important; font-weight:600 !important; border:none; cursor:pointer;
+        }
+        .btn-reject-cell:hover { background:#b91c1c !important; }
+        .btn-revoke-cell {
+            width:auto !important; padding:3px 8px !important; font-size:11px !important;
+            margin:0 2px 0 0 !important; background:#7c3aed !important; color:white !important;
+            border-radius:5px !important; font-weight:600 !important; border:none; cursor:pointer;
+        }
+        .btn-revoke-cell:hover { background:#6d28d9 !important; }
+        /* Rejected row highlight */
+        tr.rejected-row td { background:#fdf2f8 !important; }
     </style>
 </head>
 <body>
@@ -839,10 +855,8 @@
             <label class="form-label">Chanting Category</label>
             <select id="profile-chanting" required>
                 <option value="" disabled selected>Select chanting level</option>
-                <option value="Level-1">Level-1 (1–4 Rounds)</option>
-                <option value="Level-2">Level-2 (5–8 Rounds)</option>
-                <option value="Level-3">Level-3 (9–15 Rounds)</option>
-                <option value="Level-4">Level-4 (16 Rounds)</option>
+                <option value="Level-1">Level-1 (9–15 Rounds)</option>
+                <option value="Level-2">Level-2 (16 Rounds)</option>
             </select>
 
             <label class="form-label">Current Exact Rounds</label>
