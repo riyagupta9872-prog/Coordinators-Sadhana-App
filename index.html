@@ -801,24 +801,18 @@
         .pwd-eye:hover { color:#1A3C5E; transform:translateY(-50%); opacity:1; }
 
         /* ── Performers Circular Chart ── */
-        .perf-ring-wrap {
-            position:relative; width:100%; display:flex;
-            flex-direction:column; align-items:center; gap:10px;
-        }
-        .perf-rings-svg { width:100%; max-width:200px; }
-        .perf-legend { width:100%; }
+        .perf-rings-svg { width:100%; max-width:180px; display:block; margin:0 auto 10px; }
         .perf-legend-item {
             display:flex; align-items:center; gap:8px;
             padding:5px 0; border-bottom:1px solid #f5f5f5; cursor:default;
         }
         .perf-legend-item:last-child { border-bottom:none; }
-        .perf-legend-dot {
-            width:12px; height:12px; border-radius:50%; flex-shrink:0;
-        }
-        .perf-legend-name { font-size:13px; font-weight:700; color:#1a252f; flex:1; }
-        .perf-legend-pct  { font-size:13px; font-weight:700; }
-        .perf-legend-best { font-size:10px; color:#888; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .perf-empty { text-align:center; color:#aaa; font-size:12px; padding:20px 0; }
+        .perf-legend-dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+        .perf-legend-name { font-size:13px; font-weight:700; }
+        .perf-legend-pct  { font-size:13px; font-weight:800; flex-shrink:0; }
+        .perf-legend-act  { font-size:10px; color:#999; }
+        .perf-empty { text-align:center; color:#aaa; font-size:12px; padding:16px 0; }
+        .perf-tab-btn:hover { opacity:0.85; }
     </style>
 </head>
 <body>
@@ -912,6 +906,7 @@
             <button class="tab-btn active" onclick="switchTab('sadhana')">Daily Entry</button>
             <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
             <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
+            <button class="tab-btn"        onclick="switchTab('wcr')" id="user-wcr-tab" style="display:none;">&#128202; WCR</button>
         </div>
         <!-- Super Admin direct tabs (hidden for regular users) -->
         <div id="sa-nav-tabs" class="nav-tabs" style="margin-bottom:16px;display:none;">
@@ -983,6 +978,43 @@
             </div>
         </div>
 
+        <!-- USER WCR PANEL -->
+        <div id="wcr-panel" class="tab-panel">
+            <div class="card" style="margin-bottom:14px;">
+                <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128202; Weekly Comparative Report</h3>
+                <!-- Performers -->
+                <div id="user-performers-section" style="margin-bottom:18px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                        <div style="font-size:13px;font-weight:700;color:#555;">&#127942; Best &amp; Weak Performers</div>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <!-- Year -->
+                            <select id="perf-year-sel" onchange="onPerfYearChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                            <!-- Month -->
+                            <select id="perf-month-sel" onchange="onPerfMonthChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                            <!-- Week (hidden when Monthly tab) -->
+                            <select id="perf-week-sel" onchange="onPerfWeekChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;display:none;"></select>
+                            <div style="display:flex;gap:4px;">
+                                <button class="perf-tab-btn active" id="perf-tab-weekly" onclick="setPerfTab('weekly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #1A3C5E;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
+                                <button class="perf-tab-btn" id="perf-tab-monthly" onclick="setPerfTab('monthly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                            <div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:10px;">&#127942; Top Performers</div>
+                            <div id="best-performers-chart"></div>
+                        </div>
+                        <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                            <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:10px;">&#128997; Needs Attention</div>
+                            <div id="weak-performers-chart"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Comparative Table -->
+                <div id="user-wcr-container"></div>
+            </div>
+        </div>
+
         <!-- ADMIN PANEL -->
         <div id="admin-panel" class="tab-panel">
 
@@ -999,26 +1031,6 @@
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','SB',this)">Senior Batch</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF &amp; IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','ICF',this)">ICF</button>
-                    </div>
-                    <!-- Best & Weak Performers -->
-                    <div id="performers-section" style="margin-bottom:18px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                            <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Best &amp; Weak Performers</h3>
-                            <div style="display:flex;gap:6px;">
-                                <button class="perf-tab-btn active" onclick="setPerfTab('weekly',this)" style="width:auto;padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;border:1.5px solid #ddd;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
-                                <button class="perf-tab-btn" onclick="setPerfTab('monthly',this)" style="width:auto;padding:5px 14px;font-size:12px;font-weight:600;border-radius:20px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
-                            </div>
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                            <div class="card" style="padding:14px;">
-                                <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px;">&#127942; Top Performers</div>
-                                <div id="best-performers-chart"></div>
-                            </div>
-                            <div class="card" style="padding:14px;">
-                                <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:12px;">&#128997; Needs Attention</div>
-                                <div id="weak-performers-chart"></div>
-                            </div>
-                        </div>
                     </div>
                     <div class="card" style="overflow-x:auto;overflow-y:auto;max-height:70vh;">
                         <div id="admin-comparative-reports-container"></div>
