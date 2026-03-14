@@ -40,6 +40,54 @@ const t2m = (t, isSleep = false) => {
     return h * 60 + m;
 };
 
+
+// ─── Custom Time Picker helpers ──────────────────────
+// Read HH:MM in 24hr from custom picker
+function getTimePick(id) {
+    const hr   = parseInt(document.getElementById(id + '-hr')?.value)  || 0;
+    const mn   = parseInt(document.getElementById(id + '-mn')?.value)  || 0;
+    const ampm = document.getElementById(id + '-ampm')?.value || 'AM';
+    if (!document.getElementById(id + '-hr')?.value) return ''; // empty = not filled
+    let h24 = hr % 12;
+    if (ampm === 'PM') h24 += 12;
+    return `${String(h24).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+}
+
+// Set custom picker from stored 24hr value (e.g. "23:00")
+function setTimePick(id, val24) {
+    if (!val24 || val24 === 'NR') {
+        const hrEl = document.getElementById(id + '-hr');
+        const mnEl = document.getElementById(id + '-mn');
+        if (hrEl) hrEl.value = '';
+        if (mnEl) mnEl.value = '';
+        const apEl = document.getElementById(id + '-ampm');
+        if (apEl) apEl.value = 'AM';
+        return;
+    }
+    const [hStr, mStr] = val24.split(':');
+    let h = parseInt(hStr) || 0;
+    const m = parseInt(mStr) || 0;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    const hrEl = document.getElementById(id + '-hr');
+    const mnEl = document.getElementById(id + '-mn');
+    const apEl = document.getElementById(id + '-ampm');
+    if (hrEl) hrEl.value = h12;
+    if (mnEl) mnEl.value = String(m).padStart(2,'0');
+    if (apEl) apEl.value = ampm;
+}
+
+// Convert stored 24hr to display AM/PM string (e.g. "10:30 PM")
+function fmt12(val24) {
+    if (!val24 || val24 === 'NR') return val24 || 'NR';
+    const [hStr, mStr] = val24.split(':');
+    let h = parseInt(hStr) || 0;
+    const m = parseInt(mStr) || 0;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12; if (h12 === 0) h12 = 12;
+    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
 function getWeekInfo(dateStr) {
     const d   = new Date(dateStr);
     const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
@@ -638,9 +686,9 @@ function loadReports(userId, containerId) {
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
                     return `<tr style="background:${rowBg};">
                         <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}${rejectedBadge}</td>
-                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
-                        <td style="${isNR?'color:#b91c1c;':''}">${e.wakeupTime||'NR'}</td>${mkS(sc.wakeup??0)}
-                        <td>${e.chantingTime||'NR'}</td>${mkS(sc.chanting??0)}
+                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${fmt12(e.sleepTime)||'NR'}</td>${mkS(sc.sleep??0)}
+                        <td style="${isNR?'color:#b91c1c;':''}">${fmt12(e.wakeupTime)||'NR'}</td>${mkS(sc.wakeup??0)}
+                        <td>${fmt12(e.chantingTime)||'NR'}</td>${mkS(sc.chanting??0)}
                         <td>${e.readingMinutes||0}m</td>${mkS(sc.reading??0)}
                         <td>${e.hearingMinutes||0}m</td>${mkS(sc.hearing??0)}
                         <td>${e.serviceMinutes||0}m</td>${mkS(sc.service??0)}
@@ -811,14 +859,15 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
     const level = userProfile.level || 'Senior Batch';
-    let slp     = document.getElementById('sleep-time').value;
-    const wak   = document.getElementById('wakeup-time').value;
-    const chn   = document.getElementById('chanting-time').value;
+    let slp     = getTimePick('sleep-time');
+    const wak   = getTimePick('wakeup-time');
+    const chn   = getTimePick('chanting-time');
     const rMin  = parseInt(document.getElementById('reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('service-mins')?.value)||0;
     const nMin  = parseInt(document.getElementById('notes-mins')?.value)||0;
     const dsMin = parseInt(document.getElementById('day-sleep-minutes').value)||0;
+    if (!slp || !wak || !chn) { alert('❌ Please fill all time fields (Bed, Wake Up, Chanting).'); return; }
     if (slp) {
         const [sh] = slp.split(':').map(Number);
         if (sh >= 4 && sh <= 20) {
@@ -1190,9 +1239,9 @@ window.openEditModal = async (userId, date) => {
     const uSnap   = await db.collection('users').doc(userId).get();
     const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
-    document.getElementById('edit-sleep-time').value      = d.sleepTime      || '';
-    document.getElementById('edit-wakeup-time').value     = d.wakeupTime     || '';
-    document.getElementById('edit-chanting-time').value   = d.chantingTime   || '';
+    setTimePick('edit-sleep-time',    d.sleepTime    || '');
+    setTimePick('edit-wakeup-time',   d.wakeupTime   || '');
+    setTimePick('edit-chanting-time', d.chantingTime || '');
     document.getElementById('edit-reading-mins').value    = d.readingMinutes  || 0;
     document.getElementById('edit-hearing-mins').value    = d.hearingMinutes  || 0;
     document.getElementById('edit-service-mins').value    = d.serviceMinutes  || 0;
@@ -1212,9 +1261,9 @@ window.closeEditModal = () => {
 };
 
 window.updateEditPreview = () => {
-    const slp   = document.getElementById('edit-sleep-time').value;
-    const wak   = document.getElementById('edit-wakeup-time').value;
-    const chn   = document.getElementById('edit-chanting-time').value;
+    const slp   = getTimePick('edit-sleep-time');
+    const wak   = getTimePick('edit-wakeup-time');
+    const chn   = getTimePick('edit-chanting-time');
     const rMin  = parseInt(document.getElementById('edit-reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('edit-hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('edit-service-mins').value)||0;
@@ -1230,9 +1279,9 @@ window.updateEditPreview = () => {
 
 window.submitEditSadhana = async () => {
     if (!isSuperAdmin() || !editModalUserId || !editModalDate) return;
-    const slp   = document.getElementById('edit-sleep-time').value;
-    const wak   = document.getElementById('edit-wakeup-time').value;
-    const chn   = document.getElementById('edit-chanting-time').value;
+    const slp   = getTimePick('edit-sleep-time');
+    const wak   = getTimePick('edit-wakeup-time');
+    const chn   = getTimePick('edit-chanting-time');
     const rMin  = parseInt(document.getElementById('edit-reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('edit-hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('edit-service-mins').value)||0;
