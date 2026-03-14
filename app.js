@@ -40,54 +40,6 @@ const t2m = (t, isSleep = false) => {
     return h * 60 + m;
 };
 
-
-// ─── Custom Time Picker helpers ──────────────────────
-// Read HH:MM in 24hr from custom picker
-function getTimePick(id) {
-    const hr   = parseInt(document.getElementById(id + '-hr')?.value)  || 0;
-    const mn   = parseInt(document.getElementById(id + '-mn')?.value)  || 0;
-    const ampm = document.getElementById(id + '-ampm')?.value || 'AM';
-    if (!document.getElementById(id + '-hr')?.value) return ''; // empty = not filled
-    let h24 = hr % 12;
-    if (ampm === 'PM') h24 += 12;
-    return `${String(h24).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
-}
-
-// Set custom picker from stored 24hr value (e.g. "23:00")
-function setTimePick(id, val24) {
-    if (!val24 || val24 === 'NR') {
-        const hrEl = document.getElementById(id + '-hr');
-        const mnEl = document.getElementById(id + '-mn');
-        if (hrEl) hrEl.value = '';
-        if (mnEl) mnEl.value = '';
-        const apEl = document.getElementById(id + '-ampm');
-        if (apEl) apEl.value = 'AM';
-        return;
-    }
-    const [hStr, mStr] = val24.split(':');
-    let h = parseInt(hStr) || 0;
-    const m = parseInt(mStr) || 0;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    let h12 = h % 12; if (h12 === 0) h12 = 12;
-    const hrEl = document.getElementById(id + '-hr');
-    const mnEl = document.getElementById(id + '-mn');
-    const apEl = document.getElementById(id + '-ampm');
-    if (hrEl) hrEl.value = h12;
-    if (mnEl) mnEl.value = String(m).padStart(2,'0');
-    if (apEl) apEl.value = ampm;
-}
-
-// Convert stored 24hr to display AM/PM string (e.g. "10:30 PM")
-function fmt12(val24) {
-    if (!val24 || val24 === 'NR') return val24 || 'NR';
-    const [hStr, mStr] = val24.split(':');
-    let h = parseInt(hStr) || 0;
-    const m = parseInt(mStr) || 0;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    let h12 = h % 12; if (h12 === 0) h12 = 12;
-    return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
-}
-
 function getWeekInfo(dateStr) {
     const d   = new Date(dateStr);
     const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
@@ -666,18 +618,9 @@ function loadReports(userId, containerId) {
                 const rowsHtml = wk.data.sort((a,b)=>b.id.localeCompare(a.id)).map((e, ri) => {
                     const isNR     = e.sleepTime === 'NR';
                     const stripeBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
-                    const rowBg    = e.rejected ? '#fdf2f8' : isNR ? '#fff5f5' : stripeBg;
+                    const rowBg    = isNR ? '#fff5f5' : stripeBg;
                     const editedBadge = e.editedAt
                         ? `<span class="edited-badge" onclick="showEditHistory(event,'${e.id}','${userId}')" title="View edit history">✏️</span>`
-                        : '';
-                    const rejectedBadge = e.rejected
-                        ? `<span style="font-size:10px;background:#dc2626;color:white;border-radius:4px;padding:1px 5px;margin-left:3px;font-weight:700;">REJECTED</span>`
-                        : '';
-                    const isRejected = e.rejected === true;
-                    const rejectBtn = isSuperAdmin()
-                        ? isRejected
-                            ? `<button onclick="revokeRejection('${userId}','${e.id}')" class="btn-revoke-cell" title="Revoke rejection">↩ Revoke</button>`
-                            : `<button onclick="rejectEntry('${userId}','${e.id}')" class="btn-reject-cell" title="Reject entry">✕ Reject</button>`
                         : '';
                     const editBtn = isSuperAdmin()
                         ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button>`
@@ -685,10 +628,10 @@ function loadReports(userId, containerId) {
                     const sc = e.scores || {};
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
                     return `<tr style="background:${rowBg};">
-                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}${rejectedBadge}</td>
-                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${fmt12(e.sleepTime)||'NR'}</td>${mkS(sc.sleep??0)}
-                        <td style="${isNR?'color:#b91c1c;':''}">${fmt12(e.wakeupTime)||'NR'}</td>${mkS(sc.wakeup??0)}
-                        <td>${fmt12(e.chantingTime)||'NR'}</td>${mkS(sc.chanting??0)}
+                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}</td>
+                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
+                        <td style="${isNR?'color:#b91c1c;':''}">${e.wakeupTime||'NR'}</td>${mkS(sc.wakeup??0)}
+                        <td>${e.chantingTime||'NR'}</td>${mkS(sc.chanting??0)}
                         <td>${e.readingMinutes||0}m</td>${mkS(sc.reading??0)}
                         <td>${e.hearingMinutes||0}m</td>${mkS(sc.hearing??0)}
                         <td>${e.serviceMinutes||0}m</td>${mkS(sc.service??0)}
@@ -696,7 +639,7 @@ function loadReports(userId, containerId) {
                         <td>${e.daySleepMinutes||0}m</td>${mkS(sc.daySleep??0)}
                         <td style="${totalStyle(e.totalScore??0)}">${totalVal(e.totalScore??0)}</td>
                         <td>${e.dayPercent??0}%</td>
-                        ${isSuperAdmin() ? `<td style="padding:2px 4px;white-space:nowrap;">${rejectBtn} ${editBtn}</td>` : ''}
+                        ${isSuperAdmin() ? `<td style="padding:2px 4px;">${editBtn}</td>` : ''}
                     </tr>`;
                 }).join('');
                 const editThCol = isSuperAdmin() ? '<th></th>' : '';
@@ -859,15 +802,14 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
     if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
     const level = userProfile.level || 'Senior Batch';
-    let slp     = getTimePick('sleep-time');
-    const wak   = getTimePick('wakeup-time');
-    const chn   = getTimePick('chanting-time');
+    let slp     = document.getElementById('sleep-time').value;
+    const wak   = document.getElementById('wakeup-time').value;
+    const chn   = document.getElementById('chanting-time').value;
     const rMin  = parseInt(document.getElementById('reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('service-mins')?.value)||0;
     const nMin  = parseInt(document.getElementById('notes-mins')?.value)||0;
     const dsMin = parseInt(document.getElementById('day-sleep-minutes').value)||0;
-    if (!slp || !wak || !chn) { alert('❌ Please fill all time fields (Bed, Wake Up, Chanting).'); return; }
     if (slp) {
         const [sh] = slp.split(':').map(Number);
         if (sh >= 4 && sh <= 20) {
@@ -952,6 +894,227 @@ window.filterAdminUsers = () => {
     });
 };
 
+
+// ═══════════════════════════════════════════════════════════
+// BEST & WEAK PERFORMERS
+// ═══════════════════════════════════════════════════════════
+
+let _perfTab    = 'weekly';
+let _perfCache  = null; // { weekly: [...], monthly: [...] }
+
+window.setPerfTab = (tab, btn) => {
+    _perfTab = tab;
+    document.querySelectorAll('.perf-tab-btn').forEach(b => {
+        b.style.background = '#f1f5f9'; b.style.color = '#555';
+        b.style.borderColor = '#ddd';
+    });
+    btn.style.background = '#1A3C5E'; btn.style.color = 'white';
+    btn.style.borderColor = '#1A3C5E';
+    if (_perfCache) renderPerformers(_perfCache[tab] || []);
+};
+
+// Called from loadAdminPanel after data is fetched
+async function computePerformers(filtered) {
+    // ── WEEKLY: last full Sunday→Saturday week ──
+    const todayD  = new Date();
+    // Last completed week: go back to last Saturday
+    const lastSat = new Date(todayD);
+    lastSat.setDate(todayD.getDate() - ((todayD.getDay() + 1) % 7) - 1);
+    const lastSun = new Date(lastSat);
+    lastSun.setDate(lastSat.getDate() - 6);
+    const weekSun = lastSun.toISOString().split('T')[0];
+
+    // ── MONTHLY: last complete calendar month ──
+    const monthDate = new Date(todayD.getFullYear(), todayD.getMonth() - 1, 1);
+    const monthYear = monthDate.getFullYear();
+    const monthNum  = monthDate.getMonth(); // 0-indexed
+    const monthStart = `${monthYear}-${String(monthNum+1).padStart(2,'0')}-01`;
+    const monthEnd   = new Date(monthYear, monthNum+1, 0).toISOString().split('T')[0];
+
+    const weeklyScores  = [];
+    const monthlyScores = [];
+
+    for (const uDoc of filtered) {
+        const u    = uDoc.data();
+        const ents = window._adminSadhanaCache?.get(uDoc.id) || [];
+        if (!ents.length) continue;
+
+        // ── Weekly score ──
+        let wTot = 0, wEnts = [];
+        const wStart = new Date(weekSun);
+        for (let i = 0; i < 7; i++) {
+            const d  = new Date(wStart); d.setDate(d.getDate() + i);
+            const ds = d.toISOString().split('T')[0];
+            if (ds < APP_START) continue;
+            const en = ents.find(e => e.date === ds);
+            if (en) { wTot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
+            else    { wTot -= 35; }
+        }
+        const wFD  = fairDenominator(weekSun, wEnts);
+        const wPct = Math.round((wTot / wFD) * 100);
+
+        // Best activity for this user in the week
+        const bestAct = getBestActivity(ents, weekSun, 7);
+        weeklyScores.push({ name: u.name, pct: wPct, score: wTot, fd: wFD, bestAct });
+
+        // ── Monthly score: avg of weekly % for weeks in month ──
+        const weeksInMonth = getWeeksInMonth(monthStart, monthEnd);
+        let mPctSum = 0, mWkCount = 0;
+        for (const ws of weeksInMonth) {
+            let mTot = 0, mEnts = [];
+            const mStart = new Date(ws);
+            for (let i = 0; i < 7; i++) {
+                const d  = new Date(mStart); d.setDate(d.getDate() + i);
+                const ds = d.toISOString().split('T')[0];
+                if (ds < monthStart || ds > monthEnd || ds < APP_START) continue;
+                const en = ents.find(e => e.date === ds);
+                if (en) { mTot += en.score; mEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
+                else    { mTot -= 35; }
+            }
+            const fd  = fairDenominator(ws, mEnts);
+            mPctSum += Math.round((mTot / fd) * 100);
+            mWkCount++;
+        }
+        const mPct    = mWkCount > 0 ? Math.round(mPctSum / mWkCount) : 0;
+        const bestActM = getBestActivity(ents, monthStart, 30);
+        monthlyScores.push({ name: u.name, pct: mPct, bestAct: bestActM });
+    }
+
+    // Sort descending by pct
+    weeklyScores.sort((a,b)  => b.pct - a.pct);
+    monthlyScores.sort((a,b) => b.pct - a.pct);
+
+    _perfCache = { weekly: weeklyScores, monthly: monthlyScores };
+    renderPerformers(_perfCache[_perfTab]);
+}
+
+function getWeeksInMonth(monthStart, monthEnd) {
+    // Get all Sunday starts for weeks that overlap with month
+    const weeks = new Set();
+    const start = new Date(monthStart);
+    const end   = new Date(monthEnd);
+    const cur   = new Date(start);
+    // Go back to Sunday of the first week
+    cur.setDate(cur.getDate() - cur.getDay());
+    while (cur <= end) {
+        weeks.add(cur.toISOString().split('T')[0]);
+        cur.setDate(cur.getDate() + 7);
+    }
+    return Array.from(weeks);
+}
+
+function getBestActivity(ents, fromDate, days) {
+    // Sum scores per activity across given window
+    const sums = { sleep:0, wakeup:0, chanting:0, reading:0, hearing:0, service:0 };
+    const labels = { sleep:'Bed Time', wakeup:'Wake Up', chanting:'Chanting', reading:'Reading', hearing:'Hearing', service:'Service' };
+    let counted = 0;
+    for (let i = 0; i < days; i++) {
+        const d  = new Date(fromDate); d.setDate(d.getDate() + i);
+        const ds = d.toISOString().split('T')[0];
+        const en = ents.find(e => e.date === ds);
+        if (!en || !en.scores) continue;
+        Object.keys(sums).forEach(k => { sums[k] += (en.scores[k] || 0); });
+        counted++;
+    }
+    if (!counted) return 'N/A';
+    const best = Object.entries(sums).sort((a,b) => b[1]-a[1])[0];
+    return labels[best[0]] || best[0];
+}
+
+function renderPerformers(allScores) {
+    if (!allScores || !allScores.length) {
+        document.getElementById('best-performers-chart').innerHTML = '<div class="perf-empty">No data yet</div>';
+        document.getElementById('weak-performers-chart').innerHTML = '<div class="perf-empty">No data yet</div>';
+        return;
+    }
+
+    // Top 3 best (highest pct)
+    const best = allScores.slice(0, 3);
+    // Top 3 weak (lowest pct) — reverse, avoid duplicates with best
+    const weak = [...allScores].reverse().slice(0, 3);
+
+    // Color scales
+    const bestColors  = ['#1d4ed8','#3b82f6','#93c5fd']; // blue shades
+    const weakColors  = ['#dc2626','#f97316','#fbbf24']; // red→orange→yellow
+
+    renderRing('best-performers-chart', best, bestColors, true);
+    renderRing('weak-performers-chart', weak, weakColors, false);
+}
+
+function renderRing(containerId, data, colors, isBest) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!data.length) { el.innerHTML = '<div class="perf-empty">Not enough data</div>'; return; }
+
+    // Build SVG concentric rings
+    const cx = 90, cy = 90, size = 180;
+    const rings = [
+        { r:72, stroke:14 },
+        { r:52, stroke:14 },
+        { r:32, stroke:14 },
+    ];
+
+    // Max pct for scale (cap at 100, min 0)
+    const maxPct = Math.max(...data.map(d => Math.abs(d.pct)), 1);
+
+    let svgParts = `<svg viewBox="0 0 ${size} ${size}" class="perf-rings-svg">`;
+
+    // Background track rings
+    rings.forEach(ring => {
+        const circ = 2 * Math.PI * ring.r;
+        svgParts += `<circle cx="${cx}" cy="${cy}" r="${ring.r}"
+            fill="none" stroke="#f0f0f0" stroke-width="${ring.stroke}"
+            stroke-dasharray="${circ}" stroke-dashoffset="0"
+            stroke-linecap="round"/>`;
+    });
+
+    // Data rings
+    data.forEach((d, i) => {
+        if (i >= rings.length) return;
+        const ring  = rings[i];
+        const circ  = 2 * Math.PI * ring.r;
+        const pct   = Math.max(Math.min(Math.abs(d.pct), 100), 0);
+        const fill  = (pct / 100) * circ;
+        const color = colors[i];
+        // tooltip data
+        const safeN = (d.name||'').replace(/"/g,'&quot;');
+        svgParts += `<circle cx="${cx}" cy="${cy}" r="${ring.r}"
+            fill="none" stroke="${color}" stroke-width="${ring.stroke}"
+            stroke-dasharray="${fill} ${circ - fill}"
+            stroke-dashoffset="${circ * 0.25}"
+            stroke-linecap="round"
+            class="perf-ring-arc"
+            data-name="${safeN}" data-pct="${d.pct}%" data-act="${d.bestAct||'N/A'}">
+            <title>${d.name}: ${d.pct}% | Best: ${d.bestAct||'N/A'}</title>
+        </circle>`;
+    });
+
+    // Center label
+    const centerPct = data[0] ? data[0].pct + '%' : '';
+    svgParts += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
+        font-size="18" font-weight="800" fill="${colors[0]}">${centerPct}</text>`;
+    svgParts += `<text x="${cx}" y="${cy + 18}" text-anchor="middle"
+        font-size="9" fill="#aaa">${isBest ? 'top score' : 'lowest score'}</text>`;
+    svgParts += '</svg>';
+
+    // Legend
+    let legend = '<div class="perf-legend">';
+    data.forEach((d, i) => {
+        const pctColor = d.pct >= 50 ? '#15803d' : d.pct >= 20 ? '#d97706' : '#dc2626';
+        legend += `<div class="perf-legend-item">
+            <div class="perf-legend-dot" style="background:${colors[i]};"></div>
+            <div style="flex:1;min-width:0;">
+                <div class="perf-legend-name" style="color:${colors[i]};">${d.name}</div>
+                <div class="perf-legend-best">${d.bestAct||'N/A'}</div>
+            </div>
+            <div class="perf-legend-pct" style="color:${pctColor};">${d.pct}%</div>
+        </div>`;
+    });
+    legend += '</div>';
+
+    el.innerHTML = svgParts + legend;
+}
+
 async function loadAdminPanel() {
     const tableBox     = document.getElementById('admin-comparative-reports-container');
     const usersList    = document.getElementById('admin-users-list');
@@ -1005,11 +1168,12 @@ async function loadAdminPanel() {
 
     const inactiveUsers = [];
     const userSadhanaCache = new Map();
+    window._adminSadhanaCache = userSadhanaCache; // expose for performers
 
     for (const uDoc of filtered) {
         const u     = uDoc.data();
         const sSnap = await uDoc.ref.collection('sadhana').get();
-        const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
+        const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
         userSadhanaCache.set(uDoc.id, ents);
 
         const submittedDates = new Set(sSnap.docs.map(d => d.id).filter(d => d >= APP_START));
@@ -1127,6 +1291,8 @@ async function loadAdminPanel() {
     if (tabBadge) tabBadge.textContent = count4plus > 0 ? count4plus : '';
 
     tableBox.innerHTML = tHtml + '</tbody></table>';
+    // Compute performers after all data is loaded
+    computePerformers(filtered);
 }
 
 window.handleRoleDropdown = async (uid, sel) => {
@@ -1156,92 +1322,21 @@ let editModalUserId = null;
 let editModalDate   = null;
 let editModalOriginal = null;
 
-
-// ═══════════════════════════════════════════════════════════
-// REJECT / REVOKE ENTRY (Super Admin)
-// ═══════════════════════════════════════════════════════════
-window.rejectEntry = async (userId, date) => {
-    if (!isSuperAdmin()) return;
-    const reason = prompt(`Reason for rejecting entry on ${date}:\n(User will get -50 penalty)`);
-    if (reason === null) return; // cancelled
-    if (!confirm(`Reject ${date} entry?\n-50 marks penalty will apply.`)) return;
-    try {
-        const docRef = db.collection('users').doc(userId).collection('sadhana').doc(date);
-        const snap   = await docRef.get();
-        if (!snap.exists) { alert('Entry not found.'); return; }
-        const orig = snap.data();
-        await docRef.update({
-            rejected: true,
-            rejectedBy: userProfile.name,
-            rejectedAt: new Date().toISOString(),
-            rejectionReason: reason || 'No reason provided',
-            originalScoreBeforeReject: orig.totalScore ?? 0,
-            originalPercentBeforeReject: orig.dayPercent ?? 0,
-            totalScore: -50,
-            dayPercent: Math.round((-50/160)*100),
-            scores: { sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
-        });
-        alert('✅ Entry rejected. -50 penalty applied.');
-        // Reload whichever report modal is open
-        if (document.getElementById('user-report-modal') && !document.getElementById('user-report-modal').classList.contains('hidden')) {
-            loadReports(userId, 'modal-report-container');
-        }
-    } catch(e) { alert('Error: ' + e.message); }
-};
-
-window.revokeRejection = async (userId, date) => {
-    if (!isSuperAdmin()) return;
-    if (!confirm(`Revoke rejection for ${date}?\nOriginal score will be restored.`)) return;
-    try {
-        const docRef = db.collection('users').doc(userId).collection('sadhana').doc(date);
-        const snap   = await docRef.get();
-        if (!snap.exists) { alert('Entry not found.'); return; }
-        const d = snap.data();
-        const origScore = d.originalScoreBeforeReject ?? d.totalScore ?? 0;
-        const origPct   = d.originalPercentBeforeReject ?? d.dayPercent ?? 0;
-        // Recalculate proper scores from stored data
-        await docRef.update({
-            rejected: false,
-            revokedBy: userProfile.name,
-            revokedAt: new Date().toISOString(),
-            totalScore: origScore,
-            dayPercent: origPct,
-        });
-        alert('✅ Rejection revoked. Original score restored.');
-        if (document.getElementById('user-report-modal') && !document.getElementById('user-report-modal').classList.contains('hidden')) {
-            loadReports(userId, 'modal-report-container');
-        }
-    } catch(e) { alert('Error: ' + e.message); }
-};
-
 window.openEditModal = async (userId, date) => {
     if (!isSuperAdmin()) return;
     editModalUserId = userId;
     editModalDate   = date;
     const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
     const docSnap = await docRef.get();
-    // For NR entries (no doc exists), create a blank doc so admin can fill it
-    let d;
-    if (!docSnap.exists) {
-        // NR entry — prefill blanks, admin will fill real values
-        d = {
-            sleepTime:'', wakeupTime:'', chantingTime:'',
-            readingMinutes:0, hearingMinutes:0, serviceMinutes:0,
-            notesMinutes:0, daySleepMinutes:0,
-            totalScore:-35, dayPercent:-22,
-            scores:{ sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
-        };
-        editModalOriginal = { ...d, _wasNR: true };
-    } else {
-        d = docSnap.data();
-        editModalOriginal = { ...d };
-    }
+    if (!docSnap.exists) { alert('Entry not found.'); return; }
+    const d = docSnap.data();
+    editModalOriginal = { ...d };
     const uSnap   = await db.collection('users').doc(userId).get();
     const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
-    setTimePick('edit-sleep-time',    d.sleepTime    || '');
-    setTimePick('edit-wakeup-time',   d.wakeupTime   || '');
-    setTimePick('edit-chanting-time', d.chantingTime || '');
+    document.getElementById('edit-sleep-time').value      = d.sleepTime      || '';
+    document.getElementById('edit-wakeup-time').value     = d.wakeupTime     || '';
+    document.getElementById('edit-chanting-time').value   = d.chantingTime   || '';
     document.getElementById('edit-reading-mins').value    = d.readingMinutes  || 0;
     document.getElementById('edit-hearing-mins').value    = d.hearingMinutes  || 0;
     document.getElementById('edit-service-mins').value    = d.serviceMinutes  || 0;
@@ -1261,9 +1356,9 @@ window.closeEditModal = () => {
 };
 
 window.updateEditPreview = () => {
-    const slp   = getTimePick('edit-sleep-time');
-    const wak   = getTimePick('edit-wakeup-time');
-    const chn   = getTimePick('edit-chanting-time');
+    const slp   = document.getElementById('edit-sleep-time').value;
+    const wak   = document.getElementById('edit-wakeup-time').value;
+    const chn   = document.getElementById('edit-chanting-time').value;
     const rMin  = parseInt(document.getElementById('edit-reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('edit-hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('edit-service-mins').value)||0;
@@ -1279,9 +1374,9 @@ window.updateEditPreview = () => {
 
 window.submitEditSadhana = async () => {
     if (!isSuperAdmin() || !editModalUserId || !editModalDate) return;
-    const slp   = getTimePick('edit-sleep-time');
-    const wak   = getTimePick('edit-wakeup-time');
-    const chn   = getTimePick('edit-chanting-time');
+    const slp   = document.getElementById('edit-sleep-time').value;
+    const wak   = document.getElementById('edit-wakeup-time').value;
+    const chn   = document.getElementById('edit-chanting-time').value;
     const rMin  = parseInt(document.getElementById('edit-reading-mins').value)||0;
     const hMin  = parseInt(document.getElementById('edit-hearing-mins').value)||0;
     const sMin  = parseInt(document.getElementById('edit-service-mins').value)||0;
@@ -1307,10 +1402,7 @@ window.submitEditSadhana = async () => {
     };
     try {
         const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate);
-        const updateOrSet = editModalOriginal._wasNR ? 
-            (ref, data) => ref.set(data) : 
-            (ref, data) => ref.update(data);
-        await updateOrSet(docRef, {
+        await docRef.update({
             sleepTime:slp, wakeupTime:wak, chantingTime:chn,
             readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
             notesMinutes:nMin, daySleepMinutes:dsMin,
@@ -1318,7 +1410,7 @@ window.submitEditSadhana = async () => {
             editedAt: firebase.firestore.FieldValue.serverTimestamp(),
             editedBy: userProfile.name
         });
-        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog), _wasNR: firebase.firestore.FieldValue.delete() });
+        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) });
         closeEditModal();
         alert(`✅ Sadhana updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
@@ -1493,8 +1585,7 @@ window.openForgotPassword = (e) => {
     if (!email) return;
     if (!email.includes('@')) { alert('❌ Please enter a valid email address!'); return; }
     if (confirm(`Send password reset email to: ${email}?`)) {
-        const actionSettings = { url: window.location.href, handleCodeInApp: false };
-        auth.sendPasswordResetEmail(email, actionSettings)
+        auth.sendPasswordResetEmail(email)
             .then(() => alert(`✅ Password reset email sent to ${email}!\n\nCheck your inbox and spam folder.`))
             .catch(error => {
                 if (error.code==='auth/user-not-found') alert('❌ No account found with this email address!');
