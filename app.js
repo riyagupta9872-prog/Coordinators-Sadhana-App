@@ -406,6 +406,9 @@ function initDashboard() {
         if (userTabs) userTabs.style.display = '';
         if (saTabs)   saTabs.style.display   = 'none';
         if (isAnyAdmin() && adminBtn) adminBtn.classList.remove('hidden');
+        // Show WCR tab for everyone (users + category admins)
+        const wcrTab = document.getElementById('user-wcr-tab');
+        if (wcrTab) wcrTab.style.display = '';
         switchTab('sadhana');
         setupDateSelect();
         refreshFormFields();
@@ -416,8 +419,87 @@ function initDashboard() {
 // ═══════════════════════════════════════════════════════════
 // 7. NAVIGATION
 // ═══════════════════════════════════════════════════════════
+
+// ── Load WCR for regular users/category admins ────────────
+let _userWCRLoaded = false;
+async function loadUserWCR() {
+    const container = document.getElementById('user-wcr-container');
+    if (!container) return;
+    if (_userWCRLoaded) return; // already loaded
+    _userWCRLoaded = true;
+    container.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+
+    const usersSnap = await db.collection('users').get();
+    const cats      = visibleCategories();
+    const filtered  = usersSnap.docs
+        .filter(doc => cats.includes(doc.data().level||'Senior Batch'))
+        .sort((a,b) => (a.data().name||'').localeCompare(b.data().name||''));
+
+    const weeks = [];
+    for (let i=0;i<4;i++) {
+        const d=new Date(); d.setDate(d.getDate()-i*7);
+        weeks.push(getWeekInfo(d.toISOString().split('T')[0]));
+    }
+    weeks.reverse();
+
+    const pctStyle = (pct) => {
+        if (pct < 0)   return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`(${pct}%)` };
+        if (pct < 20)  return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`${pct}%`   };
+        if (pct >= 70) return { bg:'',        color:'#15803d', bold:true, text:`${pct}%`   };
+        return              { bg:'',        color:'#1a252f', bold:false, text:`${pct}%`  };
+    };
+
+    const sadhanaCache = new Map();
+
+    let tHtml = `<div style="overflow-x:auto;"><table class="comp-table" style="min-width:500px;">
+        <thead><tr>
+            <th class="comp-th comp-th-name">Name</th>
+            <th class="comp-th">Level</th>
+            ${weeks.map(w=>`<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
+        </tr></thead><tbody>`;
+
+    for (const uDoc of filtered) {
+        const u     = uDoc.data();
+        const sSnap = await uDoc.ref.collection('sadhana').get();
+        const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
+        sadhanaCache.set(uDoc.id, ents);
+
+        const rowIdx   = filtered.indexOf(uDoc);
+        const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
+
+        tHtml += `<tr style="background:${stripeBg}">
+            <td class="comp-td comp-name">${u.name}</td>
+            <td class="comp-td comp-meta">${lvlShort}</td>`;
+
+        weeks.forEach(w => {
+            let tot=0; const weekEnts=[]; const todayC = localDateStr(0);
+            let curr=new Date(w.sunStr);
+            for (let i=0;i<7;i++) {
+                const ds=curr.toISOString().split('T')[0];
+                if (ds < APP_START || ds > todayC) { curr.setDate(curr.getDate()+1); continue; }
+                const en=ents.find(e=>e.date===ds);
+                if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
+                else if (ds < todayC) { tot += -35; }
+                curr.setDate(curr.getDate()+1);
+            }
+            const fd  = fairDenominator(w.sunStr, weekEnts);
+            const pct = Math.round((tot/fd)*100);
+            const ps  = pctStyle(pct);
+            tHtml += `<td class="comp-td comp-pct" style="background:${ps.bg||stripeBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}</td>`;
+        });
+        tHtml += '</tr>';
+    }
+    tHtml += '</tbody></table></div>';
+    container.innerHTML = tHtml;
+
+    // Compute performers using this data
+    window._adminSadhanaCache = sadhanaCache;
+    computePerformers(filtered);
+}
+
 window.switchTab = (t) => {
-    ['sadhana-panel','reports-panel','progress-panel','admin-panel'].forEach(id => {
+    ['sadhana-panel','reports-panel','progress-panel','admin-panel','wcr-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
     });
@@ -428,6 +510,7 @@ window.switchTab = (t) => {
     if (btn) btn.classList.add('active');
     if (t === 'reports')  loadReports(currentUser.uid, 'weekly-reports-container');
     if (t === 'progress') loadMyProgressChart('daily');
+    if (t === 'wcr')      loadUserWCR();
 };
 
 function showSection(sec) {
@@ -456,6 +539,11 @@ window.saLvlFilter = (panel, level, btn) => {
     const bar = btn ? btn.closest('.sa-lvl-bar') : null;
     if (bar) bar.querySelectorAll('.sa-lvl-btn').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
+    // Sync performers filter when reports filter changes
+    if (panel === 'reports') {
+        _activeFilter = level;
+        renderPerformersFromCache();
+    }
 
     if (panel === 'reports') {
         document.querySelectorAll('#comp-perf-table tbody tr').forEach(row => {
@@ -894,227 +982,6 @@ window.filterAdminUsers = () => {
     });
 };
 
-
-// ═══════════════════════════════════════════════════════════
-// BEST & WEAK PERFORMERS
-// ═══════════════════════════════════════════════════════════
-
-let _perfTab    = 'weekly';
-let _perfCache  = null; // { weekly: [...], monthly: [...] }
-
-window.setPerfTab = (tab, btn) => {
-    _perfTab = tab;
-    document.querySelectorAll('.perf-tab-btn').forEach(b => {
-        b.style.background = '#f1f5f9'; b.style.color = '#555';
-        b.style.borderColor = '#ddd';
-    });
-    btn.style.background = '#1A3C5E'; btn.style.color = 'white';
-    btn.style.borderColor = '#1A3C5E';
-    if (_perfCache) renderPerformers(_perfCache[tab] || []);
-};
-
-// Called from loadAdminPanel after data is fetched
-async function computePerformers(filtered) {
-    // ── WEEKLY: last full Sunday→Saturday week ──
-    const todayD  = new Date();
-    // Last completed week: go back to last Saturday
-    const lastSat = new Date(todayD);
-    lastSat.setDate(todayD.getDate() - ((todayD.getDay() + 1) % 7) - 1);
-    const lastSun = new Date(lastSat);
-    lastSun.setDate(lastSat.getDate() - 6);
-    const weekSun = lastSun.toISOString().split('T')[0];
-
-    // ── MONTHLY: last complete calendar month ──
-    const monthDate = new Date(todayD.getFullYear(), todayD.getMonth() - 1, 1);
-    const monthYear = monthDate.getFullYear();
-    const monthNum  = monthDate.getMonth(); // 0-indexed
-    const monthStart = `${monthYear}-${String(monthNum+1).padStart(2,'0')}-01`;
-    const monthEnd   = new Date(monthYear, monthNum+1, 0).toISOString().split('T')[0];
-
-    const weeklyScores  = [];
-    const monthlyScores = [];
-
-    for (const uDoc of filtered) {
-        const u    = uDoc.data();
-        const ents = window._adminSadhanaCache?.get(uDoc.id) || [];
-        if (!ents.length) continue;
-
-        // ── Weekly score ──
-        let wTot = 0, wEnts = [];
-        const wStart = new Date(weekSun);
-        for (let i = 0; i < 7; i++) {
-            const d  = new Date(wStart); d.setDate(d.getDate() + i);
-            const ds = d.toISOString().split('T')[0];
-            if (ds < APP_START) continue;
-            const en = ents.find(e => e.date === ds);
-            if (en) { wTot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
-            else    { wTot -= 35; }
-        }
-        const wFD  = fairDenominator(weekSun, wEnts);
-        const wPct = Math.round((wTot / wFD) * 100);
-
-        // Best activity for this user in the week
-        const bestAct = getBestActivity(ents, weekSun, 7);
-        weeklyScores.push({ name: u.name, pct: wPct, score: wTot, fd: wFD, bestAct });
-
-        // ── Monthly score: avg of weekly % for weeks in month ──
-        const weeksInMonth = getWeeksInMonth(monthStart, monthEnd);
-        let mPctSum = 0, mWkCount = 0;
-        for (const ws of weeksInMonth) {
-            let mTot = 0, mEnts = [];
-            const mStart = new Date(ws);
-            for (let i = 0; i < 7; i++) {
-                const d  = new Date(mStart); d.setDate(d.getDate() + i);
-                const ds = d.toISOString().split('T')[0];
-                if (ds < monthStart || ds > monthEnd || ds < APP_START) continue;
-                const en = ents.find(e => e.date === ds);
-                if (en) { mTot += en.score; mEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
-                else    { mTot -= 35; }
-            }
-            const fd  = fairDenominator(ws, mEnts);
-            mPctSum += Math.round((mTot / fd) * 100);
-            mWkCount++;
-        }
-        const mPct    = mWkCount > 0 ? Math.round(mPctSum / mWkCount) : 0;
-        const bestActM = getBestActivity(ents, monthStart, 30);
-        monthlyScores.push({ name: u.name, pct: mPct, bestAct: bestActM });
-    }
-
-    // Sort descending by pct
-    weeklyScores.sort((a,b)  => b.pct - a.pct);
-    monthlyScores.sort((a,b) => b.pct - a.pct);
-
-    _perfCache = { weekly: weeklyScores, monthly: monthlyScores };
-    renderPerformers(_perfCache[_perfTab]);
-}
-
-function getWeeksInMonth(monthStart, monthEnd) {
-    // Get all Sunday starts for weeks that overlap with month
-    const weeks = new Set();
-    const start = new Date(monthStart);
-    const end   = new Date(monthEnd);
-    const cur   = new Date(start);
-    // Go back to Sunday of the first week
-    cur.setDate(cur.getDate() - cur.getDay());
-    while (cur <= end) {
-        weeks.add(cur.toISOString().split('T')[0]);
-        cur.setDate(cur.getDate() + 7);
-    }
-    return Array.from(weeks);
-}
-
-function getBestActivity(ents, fromDate, days) {
-    // Sum scores per activity across given window
-    const sums = { sleep:0, wakeup:0, chanting:0, reading:0, hearing:0, service:0 };
-    const labels = { sleep:'Bed Time', wakeup:'Wake Up', chanting:'Chanting', reading:'Reading', hearing:'Hearing', service:'Service' };
-    let counted = 0;
-    for (let i = 0; i < days; i++) {
-        const d  = new Date(fromDate); d.setDate(d.getDate() + i);
-        const ds = d.toISOString().split('T')[0];
-        const en = ents.find(e => e.date === ds);
-        if (!en || !en.scores) continue;
-        Object.keys(sums).forEach(k => { sums[k] += (en.scores[k] || 0); });
-        counted++;
-    }
-    if (!counted) return 'N/A';
-    const best = Object.entries(sums).sort((a,b) => b[1]-a[1])[0];
-    return labels[best[0]] || best[0];
-}
-
-function renderPerformers(allScores) {
-    if (!allScores || !allScores.length) {
-        document.getElementById('best-performers-chart').innerHTML = '<div class="perf-empty">No data yet</div>';
-        document.getElementById('weak-performers-chart').innerHTML = '<div class="perf-empty">No data yet</div>';
-        return;
-    }
-
-    // Top 3 best (highest pct)
-    const best = allScores.slice(0, 3);
-    // Top 3 weak (lowest pct) — reverse, avoid duplicates with best
-    const weak = [...allScores].reverse().slice(0, 3);
-
-    // Color scales
-    const bestColors  = ['#1d4ed8','#3b82f6','#93c5fd']; // blue shades
-    const weakColors  = ['#dc2626','#f97316','#fbbf24']; // red→orange→yellow
-
-    renderRing('best-performers-chart', best, bestColors, true);
-    renderRing('weak-performers-chart', weak, weakColors, false);
-}
-
-function renderRing(containerId, data, colors, isBest) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    if (!data.length) { el.innerHTML = '<div class="perf-empty">Not enough data</div>'; return; }
-
-    // Build SVG concentric rings
-    const cx = 90, cy = 90, size = 180;
-    const rings = [
-        { r:72, stroke:14 },
-        { r:52, stroke:14 },
-        { r:32, stroke:14 },
-    ];
-
-    // Max pct for scale (cap at 100, min 0)
-    const maxPct = Math.max(...data.map(d => Math.abs(d.pct)), 1);
-
-    let svgParts = `<svg viewBox="0 0 ${size} ${size}" class="perf-rings-svg">`;
-
-    // Background track rings
-    rings.forEach(ring => {
-        const circ = 2 * Math.PI * ring.r;
-        svgParts += `<circle cx="${cx}" cy="${cy}" r="${ring.r}"
-            fill="none" stroke="#f0f0f0" stroke-width="${ring.stroke}"
-            stroke-dasharray="${circ}" stroke-dashoffset="0"
-            stroke-linecap="round"/>`;
-    });
-
-    // Data rings
-    data.forEach((d, i) => {
-        if (i >= rings.length) return;
-        const ring  = rings[i];
-        const circ  = 2 * Math.PI * ring.r;
-        const pct   = Math.max(Math.min(Math.abs(d.pct), 100), 0);
-        const fill  = (pct / 100) * circ;
-        const color = colors[i];
-        // tooltip data
-        const safeN = (d.name||'').replace(/"/g,'&quot;');
-        svgParts += `<circle cx="${cx}" cy="${cy}" r="${ring.r}"
-            fill="none" stroke="${color}" stroke-width="${ring.stroke}"
-            stroke-dasharray="${fill} ${circ - fill}"
-            stroke-dashoffset="${circ * 0.25}"
-            stroke-linecap="round"
-            class="perf-ring-arc"
-            data-name="${safeN}" data-pct="${d.pct}%" data-act="${d.bestAct||'N/A'}">
-            <title>${d.name}: ${d.pct}% | Best: ${d.bestAct||'N/A'}</title>
-        </circle>`;
-    });
-
-    // Center label
-    const centerPct = data[0] ? data[0].pct + '%' : '';
-    svgParts += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
-        font-size="18" font-weight="800" fill="${colors[0]}">${centerPct}</text>`;
-    svgParts += `<text x="${cx}" y="${cy + 18}" text-anchor="middle"
-        font-size="9" fill="#aaa">${isBest ? 'top score' : 'lowest score'}</text>`;
-    svgParts += '</svg>';
-
-    // Legend
-    let legend = '<div class="perf-legend">';
-    data.forEach((d, i) => {
-        const pctColor = d.pct >= 50 ? '#15803d' : d.pct >= 20 ? '#d97706' : '#dc2626';
-        legend += `<div class="perf-legend-item">
-            <div class="perf-legend-dot" style="background:${colors[i]};"></div>
-            <div style="flex:1;min-width:0;">
-                <div class="perf-legend-name" style="color:${colors[i]};">${d.name}</div>
-                <div class="perf-legend-best">${d.bestAct||'N/A'}</div>
-            </div>
-            <div class="perf-legend-pct" style="color:${pctColor};">${d.pct}%</div>
-        </div>`;
-    });
-    legend += '</div>';
-
-    el.innerHTML = svgParts + legend;
-}
-
 async function loadAdminPanel() {
     const tableBox     = document.getElementById('admin-comparative-reports-container');
     const usersList    = document.getElementById('admin-users-list');
@@ -1168,7 +1035,7 @@ async function loadAdminPanel() {
 
     const inactiveUsers = [];
     const userSadhanaCache = new Map();
-    window._adminSadhanaCache = userSadhanaCache; // expose for performers
+    window._adminSadhanaCache = userSadhanaCache;
 
     for (const uDoc of filtered) {
         const u     = uDoc.data();
@@ -1291,7 +1158,7 @@ async function loadAdminPanel() {
     if (tabBadge) tabBadge.textContent = count4plus > 0 ? count4plus : '';
 
     tableBox.innerHTML = tHtml + '</tbody></table>';
-    // Compute performers after all data is loaded
+    // Build performers from loaded data
     computePerformers(filtered);
 }
 
@@ -1766,3 +1633,294 @@ window.openNotificationsPanel = async () => {
         if (badge) badge.classList.add('hidden');
     } catch(e) { console.warn(e); }
 };
+
+// ═══════════════════════════════════════════════════════════
+// BEST & WEAK PERFORMERS + USER WCR
+// ═══════════════════════════════════════════════════════════
+
+// ── Global state ──────────────────────────────────────────
+let _perfTab      = 'weekly';
+let _perfAllData  = [];   // full sorted array for current filter
+let _perfYear     = null;
+let _perfMonth    = null; // 0-indexed
+let _perfWeekIdx  = 0;    // index into weeks of selected month
+let _activeFilter = '';   // '', 'SB', 'IGF', 'ICF'
+
+// ── Init year/month dropdowns ─────────────────────────────
+function initPerfDropdowns() {
+    const yearSel  = document.getElementById('perf-year-sel');
+    const monthSel = document.getElementById('perf-month-sel');
+    if (!yearSel || !monthSel) return;
+
+    const now     = new Date();
+    const curYear = now.getFullYear();
+    const curMon  = now.getMonth(); // 0-indexed
+
+    // Years: app start year → current
+    const startYear = parseInt(APP_START.split('-')[0]);
+    yearSel.innerHTML = '';
+    for (let y = curYear; y >= startYear; y--) {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        yearSel.appendChild(o);
+    }
+
+    // Default: last complete month
+    let defYear = curYear, defMon = curMon - 1;
+    if (defMon < 0) { defMon = 11; defYear--; }
+    yearSel.value = defYear;
+    _perfYear = defYear;
+
+    populateMonthDropdown(defYear, curYear, curMon);
+    monthSel.value = defMon;
+    _perfMonth = defMon;
+
+    populateWeekDropdown();
+}
+
+function populateMonthDropdown(selYear, curYear, curMon) {
+    const monthSel = document.getElementById('perf-month-sel');
+    if (!monthSel) return;
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    monthSel.innerHTML = '';
+    const maxMon = (selYear === curYear) ? curMon - 1 : 11;
+    for (let m = (selYear === parseInt(APP_START.split('-')[0]) ? parseInt(APP_START.split('-')[1])-1 : 0); m <= Math.max(maxMon, 0); m++) {
+        const o = document.createElement('option');
+        o.value = m; o.textContent = MONTHS[m];
+        monthSel.appendChild(o);
+    }
+    // Select last complete month by default
+    monthSel.value = Math.max(maxMon, 0);
+    _perfMonth = parseInt(monthSel.value);
+}
+
+function populateWeekDropdown() {
+    const weekSel = document.getElementById('perf-week-sel');
+    if (!weekSel) return;
+    const weeks = getWeeksInMonth(
+        `${_perfYear}-${String(_perfMonth+1).padStart(2,'0')}-01`,
+        new Date(_perfYear, _perfMonth+1, 0).toISOString().split('T')[0]
+    );
+    weekSel.innerHTML = '';
+    weeks.forEach((sunStr, i) => {
+        const sun = new Date(sunStr);
+        const sat = new Date(sunStr); sat.setDate(sat.getDate()+6);
+        const fmt = d => `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString('en-GB',{month:'short'})}`;
+        const o = document.createElement('option');
+        o.value = i; o.textContent = `${fmt(sun)} – ${fmt(sat)}`;
+        weekSel.appendChild(o);
+    });
+    // Default: last week of month
+    weekSel.value = Math.max(weeks.length - 1, 0);
+    _perfWeekIdx = parseInt(weekSel.value) || 0;
+}
+
+window.onPerfYearChange = () => {
+    const now = new Date();
+    _perfYear = parseInt(document.getElementById('perf-year-sel').value);
+    populateMonthDropdown(_perfYear, now.getFullYear(), now.getMonth());
+    _perfMonth = parseInt(document.getElementById('perf-month-sel').value);
+    populateWeekDropdown();
+    renderPerformersFromCache();
+};
+window.onPerfMonthChange = () => {
+    _perfMonth = parseInt(document.getElementById('perf-month-sel').value);
+    populateWeekDropdown();
+    renderPerformersFromCache();
+};
+window.onPerfWeekChange = () => {
+    _perfWeekIdx = parseInt(document.getElementById('perf-week-sel').value) || 0;
+    renderPerformersFromCache();
+};
+
+window.setPerfTab = (tab, btn) => {
+    _perfTab = tab;
+    document.querySelectorAll('.perf-tab-btn').forEach(b => {
+        b.style.background = 'white'; b.style.color = '#555'; b.style.borderColor = '#ddd';
+    });
+    btn.style.background = '#1A3C5E'; btn.style.color = 'white'; btn.style.borderColor = '#1A3C5E';
+    const weekSel = document.getElementById('perf-week-sel');
+    if (weekSel) weekSel.style.display = tab === 'weekly' ? '' : 'none';
+    renderPerformersFromCache();
+};
+
+// ── Compute performers from cached sadhana data ───────────
+function computePerformers(filteredDocs) {
+    _perfAllData = [];
+    if (!filteredDocs || !filteredDocs.length) { renderPerformersFromCache(); return; }
+
+    filteredDocs.forEach(uDoc => {
+        const u    = uDoc.data();
+        const ents = (window._adminSadhanaCache || new Map()).get(uDoc.id) || [];
+        _perfAllData.push({ id: uDoc.id, name: u.name, level: u.level||'', ents });
+    });
+
+    initPerfDropdowns();
+    renderPerformersFromCache();
+}
+
+function getWeeksInMonth(monthStart, monthEnd) {
+    const weeks = [];
+    const end   = new Date(monthEnd);
+    const cur   = new Date(monthStart);
+    cur.setDate(cur.getDate() - cur.getDay()); // go to Sunday
+    while (cur <= end) {
+        weeks.push(cur.toISOString().split('T')[0]);
+        cur.setDate(cur.getDate() + 7);
+    }
+    return weeks;
+}
+
+function getBestActivity(ents, fromDate, days) {
+    const sums   = { sleep:0, wakeup:0, chanting:0, reading:0, hearing:0, service:0 };
+    const labels = { sleep:'Bed Time', wakeup:'Wake Up', chanting:'Chanting', reading:'Reading', hearing:'Hearing', service:'Service' };
+    let counted  = 0;
+    for (let i = 0; i < days; i++) {
+        const d  = new Date(fromDate); d.setDate(d.getDate() + i);
+        const ds = d.toISOString().split('T')[0];
+        const en = ents.find(e => e.date === ds);
+        if (!en || !en.scores) continue;
+        Object.keys(sums).forEach(k => { sums[k] += (en.scores[k] || 0); });
+        counted++;
+    }
+    if (!counted) return 'N/A';
+    return labels[Object.entries(sums).sort((a,b) => b[1]-a[1])[0][0]];
+}
+
+function renderPerformersFromCache() {
+    if (!_perfAllData.length) {
+        ['best-performers-chart','weak-performers-chart'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<div class="perf-empty">No data yet</div>';
+        });
+        return;
+    }
+
+    // Apply active level filter
+    let data = _perfAllData;
+    if (_activeFilter) {
+        data = data.filter(u => {
+            const lvl = u.level;
+            if (_activeFilter === 'SB')  return lvl === 'Senior Batch';
+            if (_activeFilter === 'IGF') return lvl === 'IGF & IYF Coordinator';
+            if (_activeFilter === 'ICF') return lvl === 'ICF Coordinator';
+            return true;
+        });
+    }
+
+    const monthStart = `${_perfYear}-${String(_perfMonth+1).padStart(2,'0')}-01`;
+    const monthEnd   = new Date(_perfYear, _perfMonth+1, 0).toISOString().split('T')[0];
+    const weeks      = getWeeksInMonth(monthStart, monthEnd);
+
+    const scores = [];
+
+    data.forEach(({ name, ents }) => {
+        let pct = 0;
+
+        if (_perfTab === 'weekly') {
+            const weekSun = weeks[Math.min(_perfWeekIdx, weeks.length-1)] || weeks[0];
+            if (!weekSun) return;
+            let tot = 0; const wEnts = [];
+            for (let i = 0; i < 7; i++) {
+                const d  = new Date(weekSun); d.setDate(d.getDate() + i);
+                const ds = d.toISOString().split('T')[0];
+                if (ds < APP_START || ds > localDateStr(0)) continue;
+                const en = ents.find(e => e.date === ds);
+                if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
+                else    { tot -= 35; }
+            }
+            const fd = fairDenominator(weekSun, wEnts);
+            pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
+            const bestAct = getBestActivity(ents, weekSun, 7);
+            scores.push({ name, pct, bestAct });
+
+        } else {
+            // Monthly: average of weekly % for all weeks in month
+            let sum = 0, count = 0;
+            weeks.forEach(weekSun => {
+                let tot = 0; const wEnts = [];
+                for (let i = 0; i < 7; i++) {
+                    const d  = new Date(weekSun); d.setDate(d.getDate() + i);
+                    const ds = d.toISOString().split('T')[0];
+                    if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > localDateStr(0)) continue;
+                    const en = ents.find(e => e.date === ds);
+                    if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
+                    else    { tot -= 35; }
+                }
+                const fd = fairDenominator(weekSun, wEnts);
+                if (fd > 160) { sum += Math.round((tot/fd)*100); count++; }
+            });
+            pct = count > 0 ? Math.round(sum / count) : 0;
+            const bestAct = getBestActivity(ents, monthStart, new Date(_perfYear, _perfMonth+1, 0).getDate());
+            scores.push({ name, pct, bestAct });
+        }
+    });
+
+    scores.sort((a,b) => b.pct - a.pct);
+    const best = scores.slice(0, 3);
+    const weak = [...scores].reverse().slice(0, 3);
+
+    renderRing('best-performers-chart', best,
+        ['#1d4ed8','#3b82f6','#93c5fd'], true);
+    renderRing('weak-performers-chart', weak,
+        ['#dc2626','#f97316','#fbbf24'], false);
+}
+
+function renderRing(containerId, data, colors, isBest) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!data.length) { el.innerHTML = '<div class="perf-empty">Not enough data</div>'; return; }
+
+    const cx = 85, cy = 85, size = 170;
+    const rings = [{r:68,sw:13},{r:50,sw:13},{r:32,sw:13}];
+
+    let svg = `<svg viewBox="0 0 ${size} ${size}" class="perf-rings-svg">`;
+
+    // Track rings (bg)
+    rings.forEach(({r, sw}) => {
+        const circ = 2 * Math.PI * r;
+        svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f0f0f0"
+            stroke-width="${sw}" stroke-dasharray="${circ}"/>`;
+    });
+
+    // Data rings
+    data.forEach(({name, pct, bestAct}, i) => {
+        if (i >= rings.length) return;
+        const {r, sw} = rings[i];
+        const circ  = 2 * Math.PI * r;
+        const fillP = Math.max(Math.min(pct, 100), 0);
+        const dash  = (fillP / 100) * circ;
+        const safeN = (name||'').replace(/"/g,'&quot;');
+        svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${colors[i]}"
+            stroke-width="${sw}" stroke-dasharray="${dash} ${circ-dash}"
+            stroke-dashoffset="${circ*0.25}" stroke-linecap="round">
+            <title>${name}: ${pct}% | Best: ${bestAct}</title>
+        </circle>`;
+    });
+
+    // Center text
+    const topPct = data[0]?.pct ?? 0;
+    const topCol = isBest ? colors[0] : '#dc2626';
+    svg += `<text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="19"
+        font-weight="800" fill="${topCol}">${topPct}%</text>`;
+    svg += `<text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9"
+        fill="#aaa">${isBest?'top score':'lowest'}</text>`;
+    svg += '</svg>';
+
+    // Legend
+    let legend = '<div>';
+    data.forEach(({name, pct, bestAct}, i) => {
+        const pColor = pct >= 50 ? '#15803d' : pct >= 20 ? '#d97706' : '#dc2626';
+        legend += `<div class="perf-legend-item">
+            <div class="perf-legend-dot" style="background:${colors[i]};"></div>
+            <div style="flex:1;min-width:0;">
+                <div class="perf-legend-name" style="color:${colors[i]};">${name}</div>
+                <div class="perf-legend-act">${bestAct}</div>
+            </div>
+            <div class="perf-legend-pct" style="color:${pColor};">${pct}%</div>
+        </div>`;
+    });
+    legend += '</div>';
+
+    el.innerHTML = svg + legend;
+}
