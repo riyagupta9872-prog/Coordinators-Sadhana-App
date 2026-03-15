@@ -718,6 +718,40 @@
         }
         .edited-badge:hover { opacity: 1; }
 
+        /* ── REJECTED BADGE (🚫 indicator) ── */
+        .rejected-badge {
+            display: inline-block; cursor: default; font-size: 11px;
+            margin-left: 4px; vertical-align: middle;
+        }
+
+        /* ── TIME HINT (AM/PM preview under time inputs) ── */
+        .time-hint {
+            font-size: 12px; font-weight: 700; color: #1A3C5E;
+            margin-top: 3px; min-height: 16px; letter-spacing: 0.02em;
+        }
+
+        /* ── PASS / FAIL BADGE ── */
+        .pf-badge {
+            display: inline-block; font-size: 10px; font-weight: 700;
+            padding: 2px 6px; border-radius: 10px; white-space: nowrap;
+        }
+        .pf-pass { background: #dcfce7; color: #15803d; }
+        .pf-fail { background: #fee2e2; color: #dc2626; }
+
+        /* ── REJECT / REVOKE BUTTONS in table rows ── */
+        .btn-reject-cell {
+            width: auto !important; padding: 3px 9px !important; font-size: 11px !important;
+            margin: 0 !important; background: #dc2626 !important; color: white !important;
+            border-radius: 5px !important; font-weight: 600 !important;
+        }
+        .btn-reject-cell:hover { background: #b91c1c !important; }
+        .btn-revoke-cell {
+            width: auto !important; padding: 3px 9px !important; font-size: 11px !important;
+            margin: 0 !important; background: #d97706 !important; color: white !important;
+            border-radius: 5px !important; font-weight: 600 !important;
+        }
+        .btn-revoke-cell:hover { background: #b45309 !important; }
+
         /* ── EDIT SADHANA MODAL fields ── */
         .edit-field-group { margin-bottom: 12px; }
         .edit-field-group label { font-weight: 600; font-size: 13px; color: #444; display: block; margin-bottom: 3px; }
@@ -923,13 +957,16 @@
                     <select id="sadhana-date" required></select>
 
                     <label class="form-label">Bed Time (Previous Night)</label>
-                    <input type="time" id="sleep-time" required>
+                    <input type="time" id="sleep-time" required oninput="updateTimeHint('sleep-time','sleep-hint')">
+                    <div id="sleep-hint" class="time-hint"></div>
 
                     <label class="form-label">Wake Up Time</label>
-                    <input type="time" id="wakeup-time" required>
+                    <input type="time" id="wakeup-time" required oninput="updateTimeHint('wakeup-time','wakeup-hint')">
+                    <div id="wakeup-hint" class="time-hint"></div>
 
                     <label class="form-label">Chanting Completed By</label>
-                    <input type="time" id="chanting-time" required>
+                    <input type="time" id="chanting-time" required oninput="updateTimeHint('chanting-time','chanting-hint')">
+                    <div id="chanting-hint" class="time-hint"></div>
 
                     <label class="form-label">Reading (Pathan) — Minutes</label>
                     <input type="number" id="reading-mins" value="0" min="0" required>
@@ -1235,15 +1272,18 @@
         <div class="edit-grid">
             <div class="edit-field-group">
                 <label>Bed Time (Night)</label>
-                <input type="time" id="edit-sleep-time" oninput="updateEditPreview()">
+                <input type="time" id="edit-sleep-time" oninput="updateEditPreview();updateTimeHint('edit-sleep-time','edit-sleep-hint')">
+                <div id="edit-sleep-hint" class="time-hint"></div>
             </div>
             <div class="edit-field-group">
                 <label>Wake Up Time</label>
-                <input type="time" id="edit-wakeup-time" oninput="updateEditPreview()">
+                <input type="time" id="edit-wakeup-time" oninput="updateEditPreview();updateTimeHint('edit-wakeup-time','edit-wakeup-hint')">
+                <div id="edit-wakeup-hint" class="time-hint"></div>
             </div>
             <div class="edit-field-group">
                 <label>Chanting Completed By</label>
-                <input type="time" id="edit-chanting-time" oninput="updateEditPreview()">
+                <input type="time" id="edit-chanting-time" oninput="updateEditPreview();updateTimeHint('edit-chanting-time','edit-chanting-hint')">
+                <div id="edit-chanting-hint" class="time-hint"></div>
             </div>
             <div class="edit-field-group">
                 <label>Day Sleep (mins)</label>
@@ -1292,6 +1332,25 @@
         <div class="modal-title">✏️ Edit History</div>
         <div id="edit-history-content"></div>
         <button onclick="closeEditHistoryModal()" class="btn-gray" style="margin-top:12px;">Close</button>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- MODAL: Reject / Revoke Entry                          -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="reject-modal" class="modal-overlay hidden">
+    <div class="modal-box sm">
+        <button class="modal-close" onclick="closeRejectModal()">×</button>
+        <div class="modal-title" id="reject-modal-title">🚫 Reject Entry</div>
+        <div id="reject-modal-body" style="margin-bottom:14px;"></div>
+        <div>
+            <label style="font-size:13px;font-weight:600;color:#555;">Remarks <span style="font-weight:400;color:#aaa;">(optional)</span></label>
+            <textarea id="reject-remarks" placeholder="Add a reason..." style="width:100%;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:13px;resize:vertical;min-height:72px;box-sizing:border-box;"></textarea>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px;">
+            <button id="reject-confirm-btn" class="btn-primary" style="flex:1;" onclick="submitRejectAction()">Confirm</button>
+            <button onclick="closeRejectModal()" class="btn-gray" style="flex:1;">Cancel</button>
+        </div>
     </div>
 </div>
 

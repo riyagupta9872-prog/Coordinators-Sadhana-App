@@ -40,6 +40,26 @@ const t2m = (t, isSleep = false) => {
     return h * 60 + m;
 };
 
+// Convert stored HH:MM → 12-hour display (e.g. "22:30" → "10:30 PM"). Display-only — never used for scoring.
+function fmt12(t) {
+    if (!t || t === 'NR') return 'NR';
+    const parts = t.split(':');
+    if (parts.length < 2) return t;
+    const h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return t;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12  = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
+// Show 12-hour hint below a time input. Called via oninput on each time field.
+window.updateTimeHint = (inputId, hintId) => {
+    const val  = document.getElementById(inputId)?.value;
+    const hint = document.getElementById(hintId);
+    if (!hint) return;
+    hint.textContent = val ? fmt12(val) : '';
+};
+
 function getWeekInfo(dateStr) {
     const d   = new Date(dateStr);
     const sun = new Date(d); sun.setDate(d.getDate() - d.getDay());
@@ -190,9 +210,9 @@ window.downloadUserExcel = async (userId, userName) => {
                 T.dsm+=e.daySleepMinutes||0; T.tot+=e.totalScore??0;
                 dataArray.push([
                     lbl,
-                    e.sleepTime||'NR',    e.scores?.sleep??0,
-                    e.wakeupTime||'NR',   e.scores?.wakeup??0,
-                    e.chantingTime||'NR', e.scores?.chanting??0,
+                    fmt12(e.sleepTime||'NR'),    e.scores?.sleep??0,
+                    fmt12(e.wakeupTime||'NR'),   e.scores?.wakeup??0,
+                    fmt12(e.chantingTime||'NR'), e.scores?.chanting??0,
                     e.readingMinutes||0,  e.scores?.reading??0,
                     e.hearingMinutes||0,  e.scores?.hearing??0,
                     e.serviceMinutes||0,  e.scores?.service??0,
@@ -488,7 +508,8 @@ async function loadUserWCR() {
             const fd  = fairDenominator(w.sunStr, weekEnts);
             const pct = Math.round((tot/fd)*100);
             const ps  = pctStyle(pct);
-            tHtml += `<td class="comp-td comp-pct" style="background:${ps.bg||stripeBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}</td>`;
+            const pf  = `<span class="pf-badge ${pct>=50?'pf-pass':'pf-fail'}" style="margin-left:4px;">${pct>=50?'P':'F'}</span>`;
+            tHtml += `<td class="comp-td comp-pct" style="background:${ps.bg||stripeBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}${pf}</td>`;
         });
         tHtml += '</tr>';
     }
@@ -705,23 +726,36 @@ function loadReports(userId, containerId) {
                     return 'font-weight:600;color:#1a252f;';
                 };
                 const totalVal = (v) => v < 0 ? `(${v})` : `${v}`;
+                const hasActionCol = isAnyAdmin() && userId !== currentUser.uid;
                 const rowsHtml = wk.data.sort((a,b)=>b.id.localeCompare(a.id)).map((e, ri) => {
                     const isNR     = e.sleepTime === 'NR';
                     const stripeBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
-                    const rowBg    = isNR ? '#fff5f5' : stripeBg;
+                    const rowBg    = e.rejected ? '#fef2f2' : isNR ? '#fff5f5' : stripeBg;
                     const editedBadge = e.editedAt
                         ? `<span class="edited-badge" onclick="showEditHistory(event,'${e.id}','${userId}')" title="View edit history">✏️</span>`
                         : '';
-                    const editBtn = isSuperAdmin()
-                        ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button>`
+                    const rejectedBadge = e.rejected
+                        ? `<span class="rejected-badge" title="Rejected by ${(e.rejectedBy||'Admin').replace(/'/g,"'")}${e.rejectionReason?': '+e.rejectionReason:''}">🚫</span>`
                         : '';
+                    const editBtn = isSuperAdmin() && !isNR
+                        ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button> `
+                        : '';
+                    let rejectBtn = '';
+                    if (hasActionCol && !isNR) {
+                        rejectBtn = e.rejected
+                            ? `<button onclick="openRejectModal('${userId}','${e.id}',true)" class="btn-revoke-cell" title="Revoke rejection">Revoke</button>`
+                            : `<button onclick="openRejectModal('${userId}','${e.id}',false)" class="btn-reject-cell" title="Reject this entry">Reject</button>`;
+                    }
+                    const dayPct = e.dayPercent ?? 0;
+                    const pfBadge = `<span class="pf-badge ${dayPct >= 50 ? 'pf-pass' : 'pf-fail'}">${dayPct >= 50 ? 'Pass' : 'Fail'}</span>`;
                     const sc = e.scores || {};
                     const mkS = (v) => `<td style="${scoreStyle(v)}">${scoreVal(v)}</td>`;
                     return `<tr style="background:${rowBg};">
-                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}</td>
-                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${e.sleepTime||'NR'}</td>${mkS(sc.sleep??0)}
-                        <td style="${isNR?'color:#b91c1c;':''}">${e.wakeupTime||'NR'}</td>${mkS(sc.wakeup??0)}
-                        <td>${e.chantingTime||'NR'}</td>${mkS(sc.chanting??0)}
+                        <td style="padding:2px 4px;">${pfBadge}</td>
+                        <td style="font-weight:600;">${e.id.split('-').slice(1).reverse().join('/')}${editedBadge}${rejectedBadge}</td>
+                        <td style="${isNR?'color:#b91c1c;font-weight:700;':''}">${fmt12(e.sleepTime||'NR')}</td>${mkS(sc.sleep??0)}
+                        <td style="${isNR?'color:#b91c1c;':''}">${fmt12(e.wakeupTime||'NR')}</td>${mkS(sc.wakeup??0)}
+                        <td>${fmt12(e.chantingTime||'NR')}</td>${mkS(sc.chanting??0)}
                         <td>${e.readingMinutes||0}m</td>${mkS(sc.reading??0)}
                         <td>${e.hearingMinutes||0}m</td>${mkS(sc.hearing??0)}
                         <td>${e.serviceMinutes||0}m</td>${mkS(sc.service??0)}
@@ -729,10 +763,10 @@ function loadReports(userId, containerId) {
                         <td>${e.daySleepMinutes||0}m</td>${mkS(sc.daySleep??0)}
                         <td style="${totalStyle(e.totalScore??0)}">${totalVal(e.totalScore??0)}</td>
                         <td>${e.dayPercent??0}%</td>
-                        ${isSuperAdmin() ? `<td style="padding:2px 4px;">${editBtn}</td>` : ''}
+                        ${hasActionCol ? `<td style="padding:2px 4px;white-space:nowrap;">${editBtn}${rejectBtn}</td>` : ''}
                     </tr>`;
                 }).join('');
-                const editThCol = isSuperAdmin() ? '<th></th>' : '';
+                const editThCol = hasActionCol ? '<th></th>' : '';
                 div.innerHTML = `
                     <div class="week-header" onclick="document.getElementById('${bodyId}').classList.toggle('open')">
                         <span style="white-space:nowrap;">📅 ${wk.range.replace('_',' ')}</span>
@@ -743,7 +777,7 @@ function loadReports(userId, containerId) {
                     <div class="week-body" id="${bodyId}">
                         <table class="data-table">
                         <thead><tr>
-                            <th>Date</th><th>Bed</th><th>M</th><th>Wake</th><th>M</th><th>Chant</th><th>M</th>
+                            <th>P/F</th><th>Date</th><th>Bed</th><th>M</th><th>Wake</th><th>M</th><th>Chant</th><th>M</th>
                             <th>Read</th><th>M</th><th>Hear</th><th>M</th><th>Seva</th><th>M</th>
                             <th>Notes</th><th>M</th><th>Day Sleep</th><th>M</th><th>Total</th><th>%</th>
                             ${editThCol}
@@ -1082,7 +1116,8 @@ async function loadAdminPanel() {
             const pct = Math.round((tot/fd)*100);
             const ps  = pctStyle(pct);
             const cellBg = ps.bg || stripeBg;
-            tHtml += `<td class="comp-td comp-pct" style="background:${cellBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}</td>`;
+            const pf  = `<span class="pf-badge ${pct>=50?'pf-pass':'pf-fail'}" style="margin-left:4px;">${pct>=50?'P':'F'}</span>`;
+            tHtml += `<td class="comp-td comp-pct" style="background:${cellBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}${pf}</td>`;
         });
         tHtml += '</tr>';
 
@@ -1209,6 +1244,9 @@ window.openEditModal = async (userId, date) => {
     document.getElementById('edit-sleep-time').value      = d.sleepTime === 'NR' ? '' : (d.sleepTime      || '');
     document.getElementById('edit-wakeup-time').value     = d.wakeupTime === 'NR' ? '' : (d.wakeupTime     || '');
     document.getElementById('edit-chanting-time').value   = d.chantingTime === 'NR' ? '' : (d.chantingTime   || '');
+    updateTimeHint('edit-sleep-time',    'edit-sleep-hint');
+    updateTimeHint('edit-wakeup-time',   'edit-wakeup-hint');
+    updateTimeHint('edit-chanting-time', 'edit-chanting-hint');
     document.getElementById('edit-reading-mins').value    = d.readingMinutes  || 0;
     document.getElementById('edit-hearing-mins').value    = d.hearingMinutes  || 0;
     document.getElementById('edit-service-mins').value    = d.serviceMinutes  || 0;
@@ -1326,8 +1364,10 @@ window.showEditHistory = async (evt, date, userId) => {
                 html += `<div class="eh-nochange">No field changes detected in this edit.</div>`;
             } else {
                 html += `<table class="eh-table"><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>`;
+                const isTimeField = (key) => key === 'sleepTime' || key === 'wakeupTime' || key === 'chantingTime';
                 changedFields.forEach(f => {
-                    html += `<tr><td class="eh-field">${f.label}</td><td class="eh-before">${o[f.oKey]??'—'}</td><td class="eh-after">${cur[f.cKey]??'—'}</td></tr>`;
+                    const disp = (v) => v == null ? '—' : (isTimeField(f.oKey) ? fmt12(String(v)) : v);
+                    html += `<tr><td class="eh-field">${f.label}</td><td class="eh-before">${disp(o[f.oKey])}</td><td class="eh-after">${disp(cur[f.cKey])}</td></tr>`;
                 });
                 html += `</tbody></table>`;
             }
@@ -1342,6 +1382,103 @@ window.showEditHistory = async (evt, date, userId) => {
 
 window.closeEditHistoryModal = () => {
     document.getElementById('edit-history-modal').classList.add('hidden');
+};
+
+// ═══════════════════════════════════════════════════════════
+// 14. REJECT / REVOKE ENTRY
+// ═══════════════════════════════════════════════════════════
+let _rejectState = null;
+
+window.openRejectModal = async (userId, date, isRevoke) => {
+    if (!isAnyAdmin()) return;
+    const docSnap = await db.collection('users').doc(userId).collection('sadhana').doc(date).get();
+    if (!docSnap.exists) { alert('Entry not found.'); return; }
+    const d = docSnap.data();
+    _rejectState = { userId, date, isRevoke, data: d };
+
+    const title      = document.getElementById('reject-modal-title');
+    const body       = document.getElementById('reject-modal-body');
+    const confirmBtn = document.getElementById('reject-confirm-btn');
+
+    if (isRevoke) {
+        title.textContent = '✅ Revoke Rejection';
+        const origScore = d.originalScore ?? 0;
+        const origPct   = d.originalPercent ?? 0;
+        body.innerHTML = `
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;font-size:13px;line-height:1.7;">
+                <div>📅 Date: <strong>${date.split('-').slice(1).reverse().join('/')}</strong></div>
+                <div>Rejected by: <strong>${d.rejectedBy || 'Admin'}</strong></div>
+                ${d.rejectionReason ? `<div>Reason: <em>${d.rejectionReason}</em></div>` : ''}
+                <div style="margin-top:8px;color:#15803d;font-weight:600;">
+                    ✅ Original score will be restored: ${origScore} / 160 (${origPct}%)
+                </div>
+            </div>`;
+        confirmBtn.textContent = '✅ Revoke Rejection';
+        confirmBtn.style.background = '#15803d';
+    } else {
+        title.textContent = '🚫 Reject Entry';
+        const score = d.totalScore ?? 0;
+        body.innerHTML = `
+            <div style="background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:12px;font-size:13px;line-height:1.7;">
+                <div>📅 Date: <strong>${date.split('-').slice(1).reverse().join('/')}</strong></div>
+                <div>Current score: <strong>${score} / 160</strong></div>
+                <div style="margin-top:8px;color:#dc2626;font-weight:600;">
+                    ⚠️ Score will be overridden to −50 as a penalty.
+                </div>
+            </div>`;
+        confirmBtn.textContent = '🚫 Reject Entry';
+        confirmBtn.style.background = '#dc2626';
+    }
+
+    document.getElementById('reject-remarks').value = '';
+    document.getElementById('reject-modal').classList.remove('hidden');
+};
+
+window.closeRejectModal = () => {
+    document.getElementById('reject-modal').classList.add('hidden');
+    _rejectState = null;
+};
+
+window.submitRejectAction = async () => {
+    if (!_rejectState || !isAnyAdmin()) return;
+    const { userId, date, isRevoke, data } = _rejectState;
+    const remarks = document.getElementById('reject-remarks').value.trim();
+    const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
+
+    try {
+        if (isRevoke) {
+            if (!confirm(`Revoke rejection for ${date.split('-').slice(1).reverse().join('/')}?\nOriginal score will be restored.`)) return;
+            await docRef.set({
+                rejected:         false,
+                revokedBy:        userProfile.name,
+                revokedByUid:     currentUser.uid,
+                revokedAt:        firebase.firestore.FieldValue.serverTimestamp(),
+                revocationReason: remarks,
+                totalScore:       data.originalScore  ?? 0,
+                dayPercent:       data.originalPercent ?? 0
+            }, { merge: true });
+            closeRejectModal();
+            alert('✅ Rejection revoked. Original score has been restored.');
+        } else {
+            if (!confirm(`Reject entry for ${date.split('-').slice(1).reverse().join('/')}?\nA penalty of −50 will be applied.`)) return;
+            await docRef.set({
+                rejected:         true,
+                rejectedBy:       userProfile.name,
+                rejectedByUid:    currentUser.uid,
+                rejectedAt:       firebase.firestore.FieldValue.serverTimestamp(),
+                rejectionReason:  remarks,
+                originalScore:    data.totalScore  ?? 0,
+                originalPercent:  data.dayPercent  ?? 0,
+                totalScore:       -50,
+                dayPercent:       -31
+            }, { merge: true });
+            closeRejectModal();
+            alert('🚫 Entry rejected. Score has been set to −50.');
+        }
+    } catch (err) {
+        console.error('Reject/revoke error:', err);
+        alert('❌ Failed: ' + err.message);
+    }
 };
 
 // ═══════════════════════════════════════════════════════════
