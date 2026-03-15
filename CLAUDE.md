@@ -22,9 +22,9 @@ There is no build system. This is a static vanilla JS/HTML app served directly. 
 ### Files
 
 - [index.html](index.html) — Full single-page app UI (~72KB). All CSS is embedded. Contains all modals, forms, and layout for every role.
-- [app.js](app.js) — Core application logic (~100KB, ~1926 lines). All Firebase interactions, scoring, UI rendering, and event handlers live here.
+- [app.js](app.js) — Core application logic (~100KB, ~1929 lines). All Firebase interactions, scoring, UI rendering, and event handlers live here.
 - [signup.html](signup.html) — Separate registration page. Creates Firebase Auth user + Firestore profile.
-- [sw.js](sw.js) — Service Worker: pre-caches static assets, network-first fetch strategy, push notification handling. Never caches Firestore API calls.
+- [sw.js](sw.js) — Service Worker: pre-caches static assets, network-first fetch strategy, push notification handling, background sync (`sadhana-reminder` tag). Never caches Firestore API calls.
 - [manifest.json](manifest.json) — PWA manifest.
 
 ### app.js Structure
@@ -80,12 +80,13 @@ Max score: **160 points**. Components:
 
 ### External Libraries (CDN, no npm)
 
+- **Firebase 8.10.1** — Auth, Firestore, Messaging (loaded via gstatic CDN)
 - **Chart.js 4.4.0** — progress charts
 - **XLSX 0.18.5** — Excel export
 
 ### PWA / Service Worker
 
-Cache version is hardcoded in [sw.js](sw.js). When adding new static assets, update the `CACHE_NAME` version and the pre-cache list in the `install` event handler.
+Cache version is hardcoded in [sw.js](sw.js) (`CACHE_NAME = 'sadhana-tracker-v1'`). The app is deployed at path `/Coordinators-Sadhana-Tracker/` — asset paths in sw.js use this prefix. When adding new static assets, update `CACHE_NAME` and the pre-cache list in the `install` handler.
 
 ## Key Conventions
 
@@ -94,3 +95,5 @@ Cache version is hardcoded in [sw.js](sw.js). When adding new static assets, upd
 - "Not Reported" days use `getNRData()` which creates a placeholder with 0 scores.
 - `fairDenominator()` excludes Not Reported days when calculating score percentages to avoid penalizing missed entries unfairly.
 - Firebase config is embedded directly in `app.js` and `signup.html` (no `.env` file).
+- `t2m(timeStr, isSleep)` converts `HH:MM` strings to minutes for scoring; sleep times past midnight (00:00–03:00) are treated as 24:00–27:00.
+- `activeListener` holds the current Firestore real-time subscription and is torn down/replaced on navigation to avoid stale listeners.

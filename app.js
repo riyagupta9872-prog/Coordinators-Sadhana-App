@@ -431,8 +431,10 @@ async function loadUserWCR() {
 
     const usersSnap = await db.collection('users').get();
     const cats      = visibleCategories();
+    // Normal users (non-admin) see their own level's data to enable competition
+    const levelFilter = cats.length > 0 ? cats : [userProfile.level || 'Senior Batch'];
     const filtered  = usersSnap.docs
-        .filter(doc => cats.includes(doc.data().level||'Senior Batch'))
+        .filter(doc => levelFilter.includes(doc.data().level||'Senior Batch'))
         .sort((a,b) => (a.data().name||'').localeCompare(b.data().name||''));
 
     const weeks = [];
@@ -1651,71 +1653,72 @@ let _activeFilter = '';   // '', 'SB', 'IGF', 'ICF'
 
 // ── Init year/month dropdowns ─────────────────────────────
 function initPerfDropdowns() {
-    const yearSel  = document.getElementById('perf-year-sel');
-    const monthSel = document.getElementById('perf-month-sel');
-    if (!yearSel || !monthSel) return;
-
     const now     = new Date();
     const curYear = now.getFullYear();
     const curMon  = now.getMonth(); // 0-indexed
 
-    // Years: app start year → current
+    // Build year options
     const startYear = parseInt(APP_START.split('-')[0]);
-    yearSel.innerHTML = '';
+    let yearHtml = '';
     for (let y = curYear; y >= startYear; y--) {
-        const o = document.createElement('option');
-        o.value = y; o.textContent = y;
-        yearSel.appendChild(o);
+        yearHtml += `<option value="${y}">${y}</option>`;
     }
 
     // Default: last complete month
     let defYear = curYear, defMon = curMon - 1;
     if (defMon < 0) { defMon = 11; defYear--; }
-    yearSel.value = defYear;
+
+    // Populate both user-WCR and SA year dropdowns
+    ['perf-year-sel', 'sa-perf-year-sel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = yearHtml; el.value = defYear; }
+    });
     _perfYear = defYear;
 
     populateMonthDropdown(defYear, curYear, curMon);
-    monthSel.value = defMon;
+    ['perf-month-sel', 'sa-perf-month-sel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = defMon;
+    });
     _perfMonth = defMon;
 
     populateWeekDropdown();
 }
 
 function populateMonthDropdown(selYear, curYear, curMon) {
-    const monthSel = document.getElementById('perf-month-sel');
-    if (!monthSel) return;
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    monthSel.innerHTML = '';
-    const maxMon = (selYear === curYear) ? curMon - 1 : 11;
-    for (let m = (selYear === parseInt(APP_START.split('-')[0]) ? parseInt(APP_START.split('-')[1])-1 : 0); m <= Math.max(maxMon, 0); m++) {
-        const o = document.createElement('option');
-        o.value = m; o.textContent = MONTHS[m];
-        monthSel.appendChild(o);
+    const maxMon  = (selYear === curYear) ? curMon - 1 : 11;
+    const startMon = selYear === parseInt(APP_START.split('-')[0]) ? parseInt(APP_START.split('-')[1])-1 : 0;
+    let html = '';
+    for (let m = startMon; m <= Math.max(maxMon, 0); m++) {
+        html += `<option value="${m}">${MONTHS[m]}</option>`;
     }
-    // Select last complete month by default
-    monthSel.value = Math.max(maxMon, 0);
-    _perfMonth = parseInt(monthSel.value);
+    const defVal = Math.max(maxMon, 0);
+    ['perf-month-sel', 'sa-perf-month-sel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = html; el.value = defVal; }
+    });
+    _perfMonth = defVal;
 }
 
 function populateWeekDropdown() {
-    const weekSel = document.getElementById('perf-week-sel');
-    if (!weekSel) return;
     const weeks = getWeeksInMonth(
         `${_perfYear}-${String(_perfMonth+1).padStart(2,'0')}-01`,
         new Date(_perfYear, _perfMonth+1, 0).toISOString().split('T')[0]
     );
-    weekSel.innerHTML = '';
+    const fmt = d => `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString('en-GB',{month:'short'})}`;
+    let html = '';
     weeks.forEach((sunStr, i) => {
         const sun = new Date(sunStr);
         const sat = new Date(sunStr); sat.setDate(sat.getDate()+6);
-        const fmt = d => `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString('en-GB',{month:'short'})}`;
-        const o = document.createElement('option');
-        o.value = i; o.textContent = `${fmt(sun)} – ${fmt(sat)}`;
-        weekSel.appendChild(o);
+        html += `<option value="${i}">${fmt(sun)} – ${fmt(sat)}</option>`;
     });
-    // Default: last week of month
-    weekSel.value = Math.max(weeks.length - 1, 0);
-    _perfWeekIdx = parseInt(weekSel.value) || 0;
+    const defVal = Math.max(weeks.length - 1, 0);
+    ['perf-week-sel', 'sa-perf-week-sel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = html; el.value = defVal; }
+    });
+    _perfWeekIdx = defVal || 0;
 }
 
 window.onPerfYearChange = () => {
@@ -1733,6 +1736,35 @@ window.onPerfMonthChange = () => {
 };
 window.onPerfWeekChange = () => {
     _perfWeekIdx = parseInt(document.getElementById('perf-week-sel').value) || 0;
+    renderPerformersFromCache();
+};
+
+// ── SA-panel performer dropdown handlers ──────────────────
+window.onSAPerfYearChange = () => {
+    const now = new Date();
+    _perfYear = parseInt(document.getElementById('sa-perf-year-sel').value);
+    populateMonthDropdown(_perfYear, now.getFullYear(), now.getMonth());
+    _perfMonth = parseInt(document.getElementById('sa-perf-month-sel').value);
+    populateWeekDropdown();
+    renderPerformersFromCache();
+};
+window.onSAPerfMonthChange = () => {
+    _perfMonth = parseInt(document.getElementById('sa-perf-month-sel').value);
+    populateWeekDropdown();
+    renderPerformersFromCache();
+};
+window.onSAPerfWeekChange = () => {
+    _perfWeekIdx = parseInt(document.getElementById('sa-perf-week-sel').value) || 0;
+    renderPerformersFromCache();
+};
+window.setSAPerfTab = (tab, btn) => {
+    _perfTab = tab;
+    document.querySelectorAll('.perf-tab-btn').forEach(b => {
+        b.style.background = 'white'; b.style.color = '#555'; b.style.borderColor = '#ddd';
+    });
+    btn.style.background = '#1A3C5E'; btn.style.color = 'white'; btn.style.borderColor = '#1A3C5E';
+    const weekSel = document.getElementById('sa-perf-week-sel');
+    if (weekSel) weekSel.style.display = tab === 'weekly' ? '' : 'none';
     renderPerformersFromCache();
 };
 
@@ -1792,7 +1824,7 @@ function getBestActivity(ents, fromDate, days) {
 
 function renderPerformersFromCache() {
     if (!_perfAllData.length) {
-        ['best-performers-chart','weak-performers-chart'].forEach(id => {
+        ['best-performers-chart','weak-performers-chart','sa-best-performers-chart','sa-weak-performers-chart'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.innerHTML = '<div class="perf-empty">No data yet</div>';
         });
@@ -1866,6 +1898,11 @@ function renderPerformersFromCache() {
     renderRing('best-performers-chart', best,
         ['#1d4ed8','#3b82f6','#93c5fd'], true);
     renderRing('weak-performers-chart', weak,
+        ['#dc2626','#f97316','#fbbf24'], false);
+    // Also render into SA panel charts
+    renderRing('sa-best-performers-chart', best,
+        ['#1d4ed8','#3b82f6','#93c5fd'], true);
+    renderRing('sa-weak-performers-chart', weak,
         ['#dc2626','#f97316','#fbbf24'], false);
 }
 

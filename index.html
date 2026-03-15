@@ -1032,6 +1032,31 @@
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF &amp; IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','ICF',this)">ICF</button>
                     </div>
+                    <!-- Best & Weak Performers for Super Admin -->
+                    <div id="sa-performers-section" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <div style="font-size:13px;font-weight:700;color:#555;">&#127942; Best &amp; Weak Performers</div>
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <select id="sa-perf-year-sel" onchange="onSAPerfYearChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                                <select id="sa-perf-month-sel" onchange="onSAPerfMonthChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                                <select id="sa-perf-week-sel" onchange="onSAPerfWeekChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;display:none;"></select>
+                                <div style="display:flex;gap:4px;">
+                                    <button class="perf-tab-btn active" id="sa-perf-tab-weekly" onclick="setSAPerfTab('weekly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #1A3C5E;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
+                                    <button class="perf-tab-btn" id="sa-perf-tab-monthly" onclick="setSAPerfTab('monthly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                                <div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:10px;">&#127942; Top Performers</div>
+                                <div id="sa-best-performers-chart"></div>
+                            </div>
+                            <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                                <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:10px;">&#128997; Needs Attention</div>
+                                <div id="sa-weak-performers-chart"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card" style="overflow-x:auto;overflow-y:auto;max-height:70vh;">
                         <div id="admin-comparative-reports-container"></div>
                     </div>
