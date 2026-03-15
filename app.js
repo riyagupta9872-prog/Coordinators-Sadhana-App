@@ -1195,15 +1195,18 @@ window.openEditModal = async (userId, date) => {
     editModalDate   = date;
     const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
     const docSnap = await docRef.get();
-    if (!docSnap.exists) { alert('Entry not found.'); return; }
-    const d = docSnap.data();
+    const d = docSnap.exists ? docSnap.data() : {
+        sleepTime: 'NR', wakeupTime: 'NR', chantingTime: 'NR',
+        readingMinutes: 0, hearingMinutes: 0, serviceMinutes: 0, notesMinutes: 0, daySleepMinutes: 0,
+        totalScore: -35, dayPercent: -22
+    };
     editModalOriginal = { ...d };
     const uSnap   = await db.collection('users').doc(userId).get();
     const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
-    document.getElementById('edit-sleep-time').value      = d.sleepTime      || '';
-    document.getElementById('edit-wakeup-time').value     = d.wakeupTime     || '';
-    document.getElementById('edit-chanting-time').value   = d.chantingTime   || '';
+    document.getElementById('edit-sleep-time').value      = d.sleepTime === 'NR' ? '' : (d.sleepTime      || '');
+    document.getElementById('edit-wakeup-time').value     = d.wakeupTime === 'NR' ? '' : (d.wakeupTime     || '');
+    document.getElementById('edit-chanting-time').value   = d.chantingTime === 'NR' ? '' : (d.chantingTime   || '');
     document.getElementById('edit-reading-mins').value    = d.readingMinutes  || 0;
     document.getElementById('edit-hearing-mins').value    = d.hearingMinutes  || 0;
     document.getElementById('edit-service-mins').value    = d.serviceMinutes  || 0;
@@ -1269,15 +1272,15 @@ window.submitEditSadhana = async () => {
     };
     try {
         const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate);
-        await docRef.update({
+        await docRef.set({
             sleepTime:slp, wakeupTime:wak, chantingTime:chn,
             readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
             notesMinutes:nMin, daySleepMinutes:dsMin,
             scores:sc, totalScore:total, dayPercent,
             editedAt: firebase.firestore.FieldValue.serverTimestamp(),
             editedBy: userProfile.name
-        });
-        await docRef.update({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) });
+        }, { merge: true });
+        await docRef.set({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) }, { merge: true });
         closeEditModal();
         alert(`✅ Sadhana updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
