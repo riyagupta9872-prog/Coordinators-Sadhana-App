@@ -378,6 +378,11 @@ function resetAppState() {
     // Leaderboard
     _lbLoading          = false;
     _lbCategoryFilter   = '';
+    _lbMode             = 'daily';
+    // Activity Analysis
+    if (_aaChartDonut) { try { _aaChartDonut.destroy(); } catch(e){} _aaChartDonut = null; }
+    if (_aaChartBar)   { try { _aaChartBar.destroy();   } catch(e){} _aaChartBar   = null; }
+    _aaUID = null; _aaName = null;
     // Charts — destroy to prevent canvas reuse errors
     if (myChartInstance)    { try { myChartInstance.destroy();    } catch(e){} myChartInstance    = null; }
     if (modalChartInstance) { try { modalChartInstance.destroy(); } catch(e){} modalChartInstance = null; }
@@ -664,6 +669,10 @@ window.openUAC = (uid, name, level, chanting, rounds, role) => {
     } else {
         roleWrap.style.display = 'none';
     }
+    // Activity Analysis — only for admins
+    const actWrap = document.getElementById('uac-activity-wrap');
+    if (actWrap) actWrap.style.display = isAnyAdmin() ? '' : 'none';
+
     document.getElementById('uac-sheet').classList.add('open');
     document.getElementById('uac-overlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -2255,10 +2264,43 @@ function avatarHtml(photoURL, name, size) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 22. DAILY LEADERBOARD
+// 22. LEADERBOARD
 // ═══════════════════════════════════════════════════════════
 let _lbLoading         = false;
 let _lbCategoryFilter  = ''; // '' = all, or specific level string
+let _lbMode            = 'daily'; // 'daily' | 'current-week' | 'prev-week'
+
+// Returns { dates[], weekStart Date, weekEnd Date } for offset 0=this week, 1=last week
+function getWeekDates(weekOffset) {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sunday
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek - (weekOffset * 7));
+    weekStart.setHours(0,0,0,0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    // Current week: cap at yesterday (today is still in progress)
+    if (weekOffset === 0) {
+        const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+        if (weekEnd > yesterday) weekEnd.setTime(yesterday.getTime());
+    }
+    const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const dates = [];
+    const cur = new Date(weekStart);
+    while (cur <= weekEnd) { dates.push(toStr(cur)); cur.setDate(cur.getDate() + 1); }
+    return { dates, weekStart, weekEnd };
+}
+
+// Sync leaderboard mode tabs and reload
+window.setLbMode = (mode, btn) => {
+    _lbMode = mode;
+    const modeIdx = ['daily','current-week','prev-week'].indexOf(mode);
+    ['lb-mode-tabs','sa-lb-mode-tabs'].forEach(id => {
+        const tabs = document.querySelectorAll(`#${id} .chart-tab-btn`);
+        tabs.forEach((b, i) => b.classList.toggle('active', i === modeIdx));
+    });
+    loadLeaderboard(true);
+};
 
 // SA category filter for leaderboard
 window.setLbFilter = (cat, btn) => {
@@ -2272,13 +2314,12 @@ window.loadLeaderboard = async (force) => {
     if (_lbLoading && !force) return;
     _lbLoading = true;
 
-    // Show yesterday's completed data (today is still in progress)
-    const targetDate = localDateStr(1);
+    const isWeekly = _lbMode === 'current-week' || _lbMode === 'prev-week';
 
     // Decide which containers to update
     const containers = [];
-    const userCont = document.getElementById('leaderboard-container');
-    const saCont   = document.getElementById('sa-leaderboard-container');
+    const userCont  = document.getElementById('leaderboard-container');
+    const saCont    = document.getElementById('sa-leaderboard-container');
     const userLabel = document.getElementById('lb-date-label');
     const saLabel   = document.getElementById('sa-lb-date-label');
 
@@ -2290,11 +2331,10 @@ window.loadLeaderboard = async (force) => {
     try {
         const usersSnap = await db.collection('users').get();
 
-        // Determine the level(s) to show based on role
+        // Determine level(s) to show based on role
         let levelFilter;
         if (isSuperAdmin()) {
-            const allCats = ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
-            levelFilter = _lbCategoryFilter ? [_lbCategoryFilter] : allCats;
+            levelFilter = _lbCategoryFilter ? [_lbCategoryFilter] : ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
         } else if (isCategoryAdmin()) {
             levelFilter = [userProfile.adminCategory];
         } else {
@@ -2302,33 +2342,65 @@ window.loadLeaderboard = async (force) => {
         }
 
         const filtered = usersSnap.docs.filter(doc => levelFilter.includes(doc.data().level || 'Senior Batch'));
-
-        // Fetch yesterday's sadhana doc for all users in parallel
-        const daySnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').doc(targetDate).get()));
-
         const rows = [];
-        filtered.forEach((uDoc, i) => {
-            const u    = uDoc.data();
-            const snap = daySnaps[i];
-            if (!snap.exists) return;
-            const d = snap.data();
-            if (!d.sleepTime || d.sleepTime === 'NR') return;
-            rows.push({
-                uid:      uDoc.id,
-                name:     u.name    || '—',
-                photo:    u.photoURL || null,
-                level:    (u.level  || '').replace(' Coordinator','').replace('Senior Batch','SB'),
-                score:    d.totalScore ?? 0,
-                pct:      d.dayPercent  ?? 0,
-                rejected: !!d.rejected
+        let dateDisp = '';
+
+        if (!isWeekly) {
+            // ── Daily: show yesterday's snapshot ──
+            const targetDate = localDateStr(1);
+            dateDisp = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+            const daySnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').doc(targetDate).get()));
+            filtered.forEach((uDoc, i) => {
+                const u = uDoc.data(), snap = daySnaps[i];
+                if (!snap.exists) return;
+                const d = snap.data();
+                if (!d.sleepTime || d.sleepTime === 'NR') return;
+                rows.push({
+                    uid: uDoc.id, name: u.name || '—', photo: u.photoURL || null,
+                    level:    (u.level || '').replace(' Coordinator','').replace('Senior Batch','SB'),
+                    score:    d.totalScore ?? 0,
+                    pct:      d.dayPercent ?? 0,
+                    days:     null,
+                    rejected: !!d.rejected
+                });
             });
-        });
+        } else {
+            // ── Weekly: aggregate over date range ──
+            const weekOffset = _lbMode === 'prev-week' ? 1 : 0;
+            const { dates, weekStart, weekEnd } = getWeekDates(weekOffset);
+            const startStr = dates[0], endStr = dates[dates.length - 1];
+            const fmtD = d => d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+            dateDisp = `${fmtD(weekStart)} – ${fmtD(weekEnd)}`;
+            const weekSnaps = await Promise.all(filtered.map(uDoc =>
+                uDoc.ref.collection('sadhana')
+                    .where(firebase.firestore.FieldPath.documentId(), '>=', startStr)
+                    .where(firebase.firestore.FieldPath.documentId(), '<=', endStr)
+                    .get()
+            ));
+            filtered.forEach((uDoc, i) => {
+                const u = uDoc.data();
+                const validDocs = weekSnaps[i].docs.filter(d => {
+                    const data = d.data();
+                    return data.sleepTime && data.sleepTime !== 'NR';
+                });
+                if (validDocs.length === 0) return;
+                const totalScore = validDocs.reduce((sum, d) => sum + (d.data().totalScore ?? 0), 0);
+                const avgPct     = Math.round(validDocs.reduce((sum, d) => sum + (d.data().dayPercent ?? 0), 0) / validDocs.length);
+                rows.push({
+                    uid: uDoc.id, name: u.name || '—', photo: u.photoURL || null,
+                    level:    (u.level || '').replace(' Coordinator','').replace('Senior Batch','SB'),
+                    score:    totalScore,
+                    pct:      avgPct,
+                    days:     validDocs.length,
+                    rejected: validDocs.some(d => d.data().rejected)
+                });
+            });
+        }
+
         rows.sort((a, b) => b.score - a.score);
+        const MEDALS = ['🥇','🥈','🥉'];
 
-        const dateDisp = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
-        const MEDALS   = ['🥇','🥈','🥉'];
-
-        // Build SA filter bar (shown only in SA leaderboard)
+        // SA category filter bar
         const filterBar = isSuperAdmin() ? `
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
             <button class="sa-lvl-btn lb-filter-btn${!_lbCategoryFilter?' active':''}" onclick="setLbFilter('',this)">All</button>
@@ -2338,18 +2410,19 @@ window.loadLeaderboard = async (force) => {
         </div>` : '';
 
         const listHtml = rows.length === 0
-            ? '<p style="color:#aaa;text-align:center;padding:20px;">No entries found for this date.</p>'
+            ? '<p style="color:#aaa;text-align:center;padding:20px;">No entries found for this period.</p>'
             : rows.map((r, i) => {
                 const isSelf     = r.uid === currentUser.uid;
-                const scoreColor = r.score >= 100 ? '#15803d' : r.score >= 60 ? '#d97706' : '#dc2626';
+                const scoreColor = r.score >= (isWeekly ? 500 : 100) ? '#15803d' : r.score >= (isWeekly ? 300 : 60) ? '#d97706' : '#dc2626';
                 const medal      = i < 3 ? MEDALS[i] : `<span style="font-size:13px;font-weight:700;color:#9ca3af;">#${i+1}</span>`;
+                const subLine    = r.days !== null ? `avg ${r.pct}% · ${r.days}d` : `${r.pct}%`;
                 return `<div class="lb-row${isSelf ? ' lb-self' : ''}">
                     <div class="lb-rank">${medal}</div>
                     ${avatarHtml(r.photo, r.name, 34)}
                     <div class="lb-name">${r.name}<span style="font-size:10px;color:#9ca3af;margin-left:5px;">${r.level}</span></div>
                     <div class="lb-score-wrap">
                         <div class="lb-score" style="color:${scoreColor};">${r.rejected ? '🚫' : r.score}</div>
-                        <div class="lb-pct">${r.rejected ? 'Rejected' : r.pct + '%'}</div>
+                        <div class="lb-pct">${r.rejected ? 'Rejected' : subLine}</div>
                     </div>
                 </div>`;
             }).join('');
@@ -2464,3 +2537,206 @@ window.deleteTask = async (taskId) => {
         alert('❌ Failed to delete: ' + e.message);
     }
 };
+
+// ═══════════════════════════════════════════════════════════
+// 24. ACTIVITY ANALYSIS
+// ═══════════════════════════════════════════════════════════
+let _aaUID = null, _aaName = null, _aaTab = 'current-week';
+let _aaChartDonut = null, _aaChartBar = null;
+
+window.uacActivity = () => {
+    const uid = _uacUID, name = _uacName;
+    closeUAC();
+    openActivityAnalysis(uid, name);
+};
+
+window.openActivityAnalysis = (uid, name) => {
+    _aaUID = uid; _aaName = name; _aaTab = 'current-week';
+    document.getElementById('aa-user-name').textContent = name;
+    document.getElementById('aa-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    // Reset tab buttons to "This Week"
+    document.querySelectorAll('.aa-tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    renderActivityAnalysis(uid, 'current-week');
+};
+
+window.closeActivityModal = () => {
+    document.getElementById('aa-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+    if (_aaChartDonut) { try { _aaChartDonut.destroy(); } catch(e){} _aaChartDonut = null; }
+    if (_aaChartBar)   { try { _aaChartBar.destroy();   } catch(e){} _aaChartBar   = null; }
+};
+
+window.setAATab = (tab, btn) => {
+    _aaTab = tab;
+    document.querySelectorAll('.aa-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderActivityAnalysis(_aaUID, tab);
+};
+
+async function renderActivityAnalysis(uid, period) {
+    const statusEl  = document.getElementById('aa-status');
+    const donutWrap = document.getElementById('aa-donut-wrap');
+    const barWrap   = document.getElementById('aa-bar-wrap');
+    statusEl.textContent = 'Loading…';
+    if (donutWrap) donutWrap.style.opacity = '0.3';
+    if (barWrap)   barWrap.style.opacity   = '0.3';
+
+    // Destroy previous charts
+    if (_aaChartDonut) { try { _aaChartDonut.destroy(); } catch(e){} _aaChartDonut = null; }
+    if (_aaChartBar)   { try { _aaChartBar.destroy();   } catch(e){} _aaChartBar   = null; }
+
+    try {
+        const weekOffset = period === 'prev-week' ? 1 : 0;
+        const { dates, weekStart, weekEnd } = getWeekDates(weekOffset);
+        const startStr = dates[0], endStr = dates[dates.length - 1];
+
+        // Fetch entries and user profile in parallel
+        const [saSnap, userSnap] = await Promise.all([
+            db.collection('users').doc(uid).collection('sadhana')
+                .where(firebase.firestore.FieldPath.documentId(), '>=', startStr)
+                .where(firebase.firestore.FieldPath.documentId(), '<=', endStr)
+                .get(),
+            db.collection('users').doc(uid).get()
+        ]);
+
+        const level = userSnap.data()?.level || '';
+        const isSB  = level === 'Senior Batch';
+
+        const validDocs = saSnap.docs.filter(d => {
+            const data = d.data();
+            return data.sleepTime && data.sleepTime !== 'NR';
+        });
+
+        if (validDocs.length === 0) {
+            statusEl.textContent = 'No entries found for this period.';
+            if (donutWrap) donutWrap.style.opacity = '1';
+            if (barWrap)   barWrap.style.opacity   = '1';
+            return;
+        }
+        statusEl.textContent = '';
+
+        // Activity definitions
+        const actKeys   = ['sleep','wakeup','chanting','reading','hearing','service'];
+        if (isSB) actKeys.push('notes');
+        actKeys.push('daySleep');
+
+        const actLabels = { sleep:'Sleep', wakeup:'Wake-up', chanting:'Chanting',
+                            reading:'Reading', hearing:'Hearing', service:'Service',
+                            notes:'Notes', daySleep:'Day Sleep' };
+        const actMax    = { sleep:25, wakeup:25, chanting:25, reading:25, hearing:25,
+                            service: isSB ? 10 : 25, notes:15, daySleep:10 };
+
+        // Accumulate actual scores across the week
+        const totals = {};
+        actKeys.forEach(k => totals[k] = 0);
+        validDocs.forEach(d => {
+            const scores = d.data().scores || {};
+            actKeys.forEach(k => { totals[k] += (scores[k] ?? 0); });
+        });
+
+        const n         = validDocs.length;
+        // Actual weekly totals — same formula WCR uses
+        const totalScore = validDocs.reduce((sum, d) => sum + (d.data().totalScore ?? 0), 0);
+        const weekPct    = Math.round(totalScore * 100 / (n * 160));
+        const weekScores = {};
+        actKeys.forEach(k => { weekScores[k] = Math.round(totals[k] * 10) / 10; });
+
+        const fmtD = d => d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+        document.getElementById('aa-period-label').textContent =
+            `${fmtD(weekStart)} – ${fmtD(weekEnd)} · ${n} day${n>1?'s':''} · ${totalScore} pts`;
+
+        if (donutWrap) donutWrap.style.opacity = '1';
+        if (barWrap)   barWrap.style.opacity   = '1';
+
+        // ── Donut chart (actual week %) ──
+        const donutColor = weekPct >= 70 ? '#16a34a' : weekPct >= 50 ? '#d97706' : '#dc2626';
+        const donutCanvas = document.getElementById('aa-donut-canvas');
+        _aaChartDonut = new Chart(donutCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [weekPct, Math.max(0, 100 - weekPct)],
+                    backgroundColor: [donutColor, '#e5e7eb'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                cutout: '74%',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                animation: { duration: 500 }
+            },
+            plugins: [{
+                id: 'centerText',
+                afterDraw(chart) {
+                    const { ctx, chartArea: { left, top, width, height } } = chart;
+                    const cx = left + width / 2, cy = top + height / 2;
+                    ctx.save();
+                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.font = `bold ${Math.round(width * 0.2)}px Segoe UI`;
+                    ctx.fillStyle = donutColor;
+                    ctx.fillText(weekPct + '%', cx, cy - 7);
+                    ctx.font = `${Math.round(width * 0.1)}px Segoe UI`;
+                    ctx.fillStyle = '#6b7280';
+                    ctx.fillText('week score', cx, cy + 12);
+                    ctx.restore();
+                }
+            }]
+        });
+
+        // ── Horizontal bar chart (actual total pts per activity) ──
+        const maxPossible = n * 25; // max any single activity can score per week
+        const barColors = actKeys.map(k => {
+            const maxK = actMax[k] * n;
+            const pct  = maxK > 0 ? (weekScores[k] / maxK) * 100 : 0;
+            return pct >= 75 ? '#16a34a' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        });
+
+        const barCanvas = document.getElementById('aa-bar-canvas');
+        _aaChartBar = new Chart(barCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: actKeys.map(k => actLabels[k]),
+                datasets: [{
+                    data:            actKeys.map(k => weekScores[k]),
+                    backgroundColor: barColors,
+                    borderRadius:    4,
+                    barThickness:    14
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const k   = actKeys[ctx.dataIndex];
+                                const maxK = actMax[k] * n;
+                                const pctStr = maxK > 0 ? ` (${Math.round(weekScores[k]*100/maxK)}%)` : '';
+                                return ` ${weekScores[k]} / ${maxK} pts${pctStr}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        min: Math.floor(-5 * n),
+                        max: Math.ceil(25 * n),
+                        grid: { color: '#f3f4f6' },
+                        ticks: { font: { size: 10 } }
+                    },
+                    y: { ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+
+    } catch (e) {
+        statusEl.textContent = 'Error loading data.';
+        console.error('Activity Analysis error:', e);
+    }
+}

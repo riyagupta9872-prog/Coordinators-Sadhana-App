@@ -873,6 +873,15 @@
         .task-cat-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;margin-right:6px; }
         .task-link { display:inline-block;margin-top:6px;color:#3498db;font-size:12px;word-break:break-all; }
         .task-del-btn { float:right;background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;width:auto;padding:0;margin:0;line-height:1; }
+
+        /* ── ACTIVITY ANALYSIS ── */
+        .aa-donut-wrap { position:relative;width:130px;height:130px;flex-shrink:0; }
+        .aa-donut-label { position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none; }
+        .aa-donut-pct { font-size:22px;font-weight:800;color:#1A3C5E; }
+        .aa-donut-sub { font-size:10px;color:#9ca3af;margin-top:2px; }
+        .aa-bar-wrap { position:relative;height:220px; }
+        .aa-summary-item { font-size:12px;color:#374151;margin-bottom:6px; }
+        .aa-summary-item strong { color:#1A3C5E; }
     </style>
 </head>
 <body>
@@ -1058,6 +1067,14 @@
                 <div class="chart-container"><canvas id="my-progress-chart"></canvas></div>
                 <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">Daily max: 160 · Weekly max: 1120</p>
             </div>
+            <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;">
+                <div>
+                    <div style="font-weight:700;font-size:14px;color:var(--primary);">&#128202; Activity Analysis</div>
+                    <div style="font-size:12px;color:var(--muted);margin-top:2px;">See which activities you're excelling at and where to improve</div>
+                </div>
+                <button class="btn-primary" style="width:auto;padding:8px 16px;font-size:13px;white-space:nowrap;margin-left:12px;"
+                    onclick="openActivityAnalysis(currentUser.uid, userProfile.name)">View &#8594;</button>
+            </div>
         </div>
 
         <!-- USER WCR PANEL -->
@@ -1100,11 +1117,16 @@
         <!-- LEADERBOARD PANEL (shared for regular users; SA uses sub-panel) -->
         <div id="leaderboard-panel" class="tab-panel">
             <div class="card">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-                    <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Daily Leaderboard</h3>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                    <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Leaderboard</h3>
                     <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">&#8635; Refresh</button>
                 </div>
-                <div id="lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:12px;"></div>
+                <div class="chart-tabs" style="margin-bottom:10px;" id="lb-mode-tabs">
+                    <button class="chart-tab-btn active" onclick="setLbMode('daily',this)">Yesterday</button>
+                    <button class="chart-tab-btn" onclick="setLbMode('current-week',this)">This Week</button>
+                    <button class="chart-tab-btn" onclick="setLbMode('prev-week',this)">Last Week</button>
+                </div>
+                <div id="lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:10px;"></div>
                 <div id="leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
             </div>
         </div>
@@ -1202,11 +1224,16 @@
                 <!-- SA Leaderboard sub-panel -->
                 <div id="admin-sub-leaderboard" class="admin-sub-panel hidden">
                     <div class="card">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-                            <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Daily Leaderboard</h3>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                            <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Leaderboard</h3>
                             <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">&#8635; Refresh</button>
                         </div>
-                        <div id="sa-lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:12px;"></div>
+                        <div class="chart-tabs" style="margin-bottom:10px;" id="sa-lb-mode-tabs">
+                            <button class="chart-tab-btn active" onclick="setLbMode('daily',this)">Yesterday</button>
+                            <button class="chart-tab-btn" onclick="setLbMode('current-week',this)">This Week</button>
+                            <button class="chart-tab-btn" onclick="setLbMode('prev-week',this)">Last Week</button>
+                        </div>
+                        <div id="sa-lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:10px;"></div>
                         <div id="sa-leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
                     </div>
                 </div>
@@ -1285,6 +1312,10 @@
                 </div>
             </div>
             <div class="sidebar-nav">
+                <button class="sidebar-item" onclick="closeUserSidebar(); openActivityAnalysis(currentUser.uid, userProfile.name);">
+                    <span class="sidebar-item-icon">&#128202;</span>
+                    <span class="sidebar-item-label">Activity Analysis</span>
+                </button>
                 <button class="sidebar-item" onclick="closeUserSidebar(); openProfileEdit();">
                     <span class="sidebar-item-icon">&#9999;&#65039;</span>
                     <span class="sidebar-item-label">Edit Profile</span>
@@ -1602,6 +1633,11 @@ window.togglePwd = (inputId, btn) => {
         <button class="uac-btn" onclick="uacProgress()">
             <div class="uac-ico" style="background:#ede9fe;">&#128200;</div><span>View Progress</span>
         </button>
+        <div id="uac-activity-wrap">
+            <button class="uac-btn" onclick="uacActivity()">
+                <div class="uac-ico" style="background:#fef3c7;">&#128202;</div><span>Activity Analysis</span>
+            </button>
+        </div>
         <div id="uac-role-wrap">
             <hr class="uac-divider">
             <div class="uac-role-label">Change Role</div>
@@ -1613,6 +1649,54 @@ window.togglePwd = (inputId, btn) => {
         <button class="uac-btn danger" onclick="uacRemove()">
             <div class="uac-ico" style="background:#fee2e2;">&#128465;&#65039;</div><span>Remove User</span>
         </button>
+    </div>
+</div>
+<!-- ── Activity Analysis Modal ── -->
+<div id="aa-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeActivityModal()">
+    <div class="modal-box" style="max-width:520px;padding:0;border-radius:16px;overflow:hidden;">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#1A3C5E,#2563a0);padding:18px 20px 14px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div style="color:white;font-size:15px;font-weight:700;">&#128202; Activity Analysis</div>
+                <div id="aa-user-name" style="color:#93c5fd;font-size:13px;margin-top:2px;">—</div>
+            </div>
+            <button onclick="closeActivityModal()" style="width:32px;height:32px;background:rgba(255,255,255,0.15);border:none;border-radius:50%;color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;margin:0;">&#10005;</button>
+        </div>
+        <!-- Tabs -->
+        <div class="chart-tabs" style="margin:14px 20px 0;">
+            <button class="chart-tab-btn aa-tab-btn active" onclick="setAATab('current-week',this)">This Week</button>
+            <button class="chart-tab-btn aa-tab-btn"        onclick="setAATab('prev-week',this)">Last Week</button>
+        </div>
+        <!-- Period label + status -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 20px 0;">
+            <div id="aa-period-label" style="font-size:12px;color:#6b7280;"></div>
+            <div id="aa-status"       style="font-size:12px;color:#6b7280;"></div>
+        </div>
+        <!-- Charts -->
+        <div style="display:flex;flex-direction:column;gap:16px;padding:16px 20px 20px;">
+            <!-- Donut: overall average % -->
+            <div style="display:flex;align-items:center;gap:20px;">
+                <div class="aa-donut-wrap" id="aa-donut-wrap">
+                    <canvas id="aa-donut-canvas"></canvas>
+                </div>
+                <div style="flex:1;">
+                    <div style="font-size:13px;font-weight:700;color:#1A3C5E;margin-bottom:4px;">Weekly Score %</div>
+                    <div style="font-size:12px;color:#6b7280;line-height:1.6;">
+                        Total marks earned ÷ max possible for submitted days (same as WCR).
+                        <br><span style="color:#16a34a;font-weight:600;">&#8805;70%</span> Good &nbsp;
+                        <span style="color:#d97706;font-weight:600;">50–69%</span> OK &nbsp;
+                        <span style="color:#dc2626;font-weight:600;">&lt;50%</span> Needs work
+                    </div>
+                </div>
+            </div>
+            <!-- Bar: per-activity breakdown -->
+            <div>
+                <div style="font-size:13px;font-weight:700;color:#1A3C5E;margin-bottom:8px;">Activity Breakdown (total pts this week)</div>
+                <div class="aa-bar-wrap" id="aa-bar-wrap">
+                    <canvas id="aa-bar-canvas"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 </body>
