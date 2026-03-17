@@ -359,9 +359,41 @@ window.downloadMasterReport = async () => {
 // ═══════════════════════════════════════════════════════════
 // 5. AUTH
 // ═══════════════════════════════════════════════════════════
+
+// Wipe ALL cached state — called on every sign-in/sign-out to prevent data leaking between accounts
+function resetAppState() {
+    // WCR / admin panel caches
+    _userWCRLoaded    = false;
+    adminPanelLoaded  = false;
+    window._wcrUserList       = [];
+    window._adminCmpUserList  = [];
+    window._adminSadhanaCache = new Map();
+    window._inactiveUsers     = [];
+    // Performance analytics
+    _perfAllData  = [];
+    _perfYear     = null;
+    _perfMonth    = null;
+    _perfWeekIdx  = 0;
+    _activeFilter = '';
+    // Leaderboard
+    _lbLoading          = false;
+    _lbCategoryFilter   = '';
+    // Charts — destroy to prevent canvas reuse errors
+    if (myChartInstance)    { try { myChartInstance.destroy();    } catch(e){} myChartInstance    = null; }
+    if (modalChartInstance) { try { modalChartInstance.destroy(); } catch(e){} modalChartInstance = null; }
+    // Active Firestore real-time listener
+    if (activeListener) { activeListener(); activeListener = null; }
+    // Edit / reject modal state
+    editModalUserId = null; editModalDate = null; editModalOriginal = null;
+    _rejectState    = null;
+    _uacUID = null; _uacName = null;
+    window._profilePicDataUrl = null;
+}
+
 let _profileUnsub = null;
 auth.onAuthStateChanged((user) => {
     if (_profileUnsub) { _profileUnsub(); _profileUnsub = null; }
+    resetAppState(); // always wipe stale state before loading any account
     if (user) {
         currentUser = user;
         let _dashboardInited = false;
@@ -398,6 +430,7 @@ function initDashboard() {
                     : (userProfile.level || 'Senior Batch');
     document.getElementById('user-display-name').textContent = userProfile.name;
     document.getElementById('user-role-display').textContent = roleLabel;
+    updateAvatarDisplay(userProfile.photoURL || null, userProfile.name || '');
     showSection('dashboard');
 
     const userTabs = document.getElementById('user-nav-tabs');
@@ -482,13 +515,15 @@ async function loadUserWCR() {
             ${weeks.map(w=>`<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
         </tr></thead><tbody>`;
 
-    for (const uDoc of filtered) {
+    // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
+    const allSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
+
+    filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
-        const sSnap = await uDoc.ref.collection('sadhana').get();
+        const sSnap = allSnaps[rowIdx];
         const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
         sadhanaCache.set(uDoc.id, ents);
 
-        const rowIdx   = filtered.indexOf(uDoc);
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
         const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
 
@@ -517,7 +552,7 @@ async function loadUserWCR() {
             tHtml += `<td class="comp-td comp-pct" style="background:${ps.bg||stripeBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}${pf}</td>`;
         });
         tHtml += '</tr>';
-    }
+    });
     tHtml += '</tbody></table></div>';
     container.innerHTML = tHtml;
 
@@ -527,7 +562,7 @@ async function loadUserWCR() {
 }
 
 window.switchTab = (t) => {
-    ['sadhana-panel','reports-panel','progress-panel','admin-panel','wcr-panel'].forEach(id => {
+    ['sadhana-panel','reports-panel','progress-panel','admin-panel','wcr-panel','leaderboard-panel','tasks-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
     });
@@ -536,9 +571,11 @@ window.switchTab = (t) => {
     if (panel) panel.classList.add('active');
     const btn = document.querySelector(`.tab-btn[onclick*="'${t}'"]`);
     if (btn) btn.classList.add('active');
-    if (t === 'reports')  loadReports(currentUser.uid, 'weekly-reports-container');
-    if (t === 'progress') loadMyProgressChart('daily');
-    if (t === 'wcr')      loadUserWCR();
+    if (t === 'reports')     loadReports(currentUser.uid, 'weekly-reports-container');
+    if (t === 'progress')    loadMyProgressChart('daily');
+    if (t === 'wcr')         loadUserWCR();
+    if (t === 'leaderboard') loadLeaderboard(false);
+    if (t === 'tasks')       loadTasks();
 };
 
 function showSection(sec) {
@@ -551,7 +588,7 @@ function showSection(sec) {
 // 8. SUPER ADMIN: Tab switching + Level filters + UAC sheet
 // ═══════════════════════════════════════════════════════════
 
-// SA tab buttons (WCR / Individual Reports / Inactive Devotees)
+// SA tab buttons (WCR / Individual Reports / Inactive Devotees / Leaderboard / Tasks)
 window.saTab = (section, btn) => {
     document.querySelectorAll('.sa-tab').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
@@ -560,6 +597,8 @@ window.saTab = (section, btn) => {
     });
     const panel = document.getElementById('admin-sub-' + section);
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+    if (section === 'leaderboard') loadLeaderboard(false);
+    if (section === 'tasks')       loadSATasks();
 };
 
 // Level filter buttons
@@ -643,6 +682,13 @@ window.uacProgress = () => { closeUAC(); openProgressModal(_uacUID, _uacName); }
 // Called when a name in the WCR table is clicked — opens the action sheet
 window.openWCRUser = (idx) => {
     const u = (window._wcrUserList || [])[idx];
+    if (!u) return;
+    openUAC(u.uid, u.name, u.level, u.chanting, u.rounds, u.role);
+};
+
+// Called when a name in the SA comparative table is clicked — opens the action sheet
+window.openAdminCmpUser = (idx) => {
+    const u = (window._adminCmpUserList || [])[idx];
     if (!u) return;
     openUAC(u.uid, u.name, u.level, u.chanting, u.rounds, u.role);
 };
@@ -1015,6 +1061,8 @@ window.selectAdminSection = (section, btn) => {
     const panel = document.getElementById('admin-sub-' + section);
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
     closeAdminDrawer();
+    if (section === 'leaderboard') loadLeaderboard(false);
+    if (section === 'tasks')       loadSATasks();
 };
 
 window.filterAdminUsers = () => {
@@ -1084,10 +1132,14 @@ async function loadAdminPanel() {
     const inactiveUsers = [];
     const userSadhanaCache = new Map();
     window._adminSadhanaCache = userSadhanaCache;
+    window._adminCmpUserList = [];
 
-    for (const uDoc of filtered) {
+    // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
+    const allAdminSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
+
+    filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
-        const sSnap = await uDoc.ref.collection('sadhana').get();
+        const sSnap = allAdminSnaps[rowIdx];
         const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
         userSadhanaCache.set(uDoc.id, ents);
 
@@ -1105,11 +1157,12 @@ async function loadAdminPanel() {
             inactiveUsers.push({ id: uDoc.id, name: u.name, level: u.level, lastDate, missedDays });
         }
 
-        const rowIdx = filtered.indexOf(uDoc);
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
         const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
+        const cmpIdx = window._adminCmpUserList.length;
+        window._adminCmpUserList.push({ uid: uDoc.id, name: u.name||'', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user' });
         tHtml += `<tr style="background:${stripeBg}">
-            <td class="comp-td comp-name">${u.name}</td>
+            <td class="comp-td comp-name" onclick="openAdminCmpUser(${cmpIdx})" style="cursor:pointer;" title="View ${(u.name||'').replace(/"/g,'&quot;')}">${u.name}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>
             <td class="comp-td comp-meta">${u.chantingCategory||'N/A'}</td>`;
         weeks.forEach(w => {
@@ -1150,7 +1203,7 @@ async function loadAdminPanel() {
                 <span class="user-list-chevron">›</span>
             </div>`;
         usersList.appendChild(card);
-    }
+    });
 
     // ── Inactive devotees ──
     inactiveUsers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
@@ -1528,6 +1581,7 @@ document.getElementById('profile-form').onsubmit = async (e) => {
         exactRounds:      document.getElementById('profile-exact-rounds').value,
         role:             userProfile?.role || 'user'
     };
+    if (window._profilePicDataUrl) data.photoURL = window._profilePicDataUrl;
     await db.collection('users').doc(currentUser.uid).set(data, { merge:true });
     alert('✅ Profile saved!');
     location.reload();
@@ -1599,6 +1653,19 @@ window.openProfileEdit = () => {
     document.getElementById('profile-chanting').value       = userProfile.chantingCategory || '';
     document.getElementById('profile-exact-rounds').value   = userProfile.exactRounds      || '';
     document.getElementById('cancel-edit').classList.remove('hidden');
+    window._profilePicDataUrl = null;
+    // Show current photo in the profile pic preview
+    const photoURL = userProfile.photoURL || null;
+    const name     = userProfile.name || '';
+    const preview  = document.getElementById('profile-pic-preview');
+    const init     = document.getElementById('profile-pic-init');
+    if (photoURL) {
+        preview.src = photoURL; preview.style.display = '';
+        if (init) init.style.display = 'none';
+    } else {
+        if (preview) preview.style.display = 'none';
+        if (init) { init.textContent = (name[0] || '?').toUpperCase(); init.style.display = ''; }
+    }
     showSection('profile');
 };
 
@@ -2118,3 +2185,282 @@ function renderRing(containerId, data, colors, isBest) {
 
     el.innerHTML = svg + legend;
 }
+
+// ═══════════════════════════════════════════════════════════
+// 21. PROFILE PICTURE
+// ═══════════════════════════════════════════════════════════
+window._profilePicDataUrl = null;
+
+// Compress selected image to 200×200 JPEG, store as base64 for preview + save
+window.handleProfilePicSelect = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX = 200;
+            let w = img.width, h = img.height;
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else       { w = Math.round(w * MAX / h); h = MAX; }
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            window._profilePicDataUrl = dataUrl;
+            // Update preview
+            const preview = document.getElementById('profile-pic-preview');
+            const init    = document.getElementById('profile-pic-init');
+            if (preview) { preview.src = dataUrl; preview.style.display = ''; }
+            if (init)    init.style.display = 'none';
+        };
+        img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+// Update all avatar elements (header, sidebar, profile preview) from a photoURL or name initials
+function updateAvatarDisplay(photoURL, name) {
+    const initial = (name || '?')[0].toUpperCase();
+    const pairs = [
+        ['header-av-img', 'header-av-init'],
+        ['sidebar-av-img', 'sidebar-av-init'],
+    ];
+    pairs.forEach(([imgId, initId]) => {
+        const img  = document.getElementById(imgId);
+        const init = document.getElementById(initId);
+        if (!img || !init) return;
+        if (photoURL) {
+            img.src = photoURL; img.style.display = '';
+            init.style.display = 'none';
+        } else {
+            img.style.display  = 'none';
+            init.textContent   = initial;
+            init.style.display = '';
+        }
+    });
+    // Sidebar name/role are set elsewhere; just update the sidebar user name display
+    const sName = document.getElementById('sidebar-user-name');
+    if (sName && name) sName.textContent = name;
+}
+
+// Helper: build a small inline avatar HTML for use in leaderboard/performers
+function avatarHtml(photoURL, name, size) {
+    const sz = size || 32;
+    const initial = (name || '?')[0].toUpperCase();
+    if (photoURL) {
+        return `<div class="av" style="width:${sz}px;height:${sz}px;flex-shrink:0;"><img src="${photoURL}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"></div>`;
+    }
+    return `<div class="av" style="width:${sz}px;height:${sz}px;flex-shrink:0;"><span class="av-init" style="font-size:${Math.round(sz*0.38)}px;">${initial}</span></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// 22. DAILY LEADERBOARD
+// ═══════════════════════════════════════════════════════════
+let _lbLoading         = false;
+let _lbCategoryFilter  = ''; // '' = all, or specific level string
+
+// SA category filter for leaderboard
+window.setLbFilter = (cat, btn) => {
+    _lbCategoryFilter = cat;
+    document.querySelectorAll('.lb-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    loadLeaderboard(true);
+};
+
+window.loadLeaderboard = async (force) => {
+    if (_lbLoading && !force) return;
+    _lbLoading = true;
+
+    // Show yesterday's completed data (today is still in progress)
+    const targetDate = localDateStr(1);
+
+    // Decide which containers to update
+    const containers = [];
+    const userCont = document.getElementById('leaderboard-container');
+    const saCont   = document.getElementById('sa-leaderboard-container');
+    const userLabel = document.getElementById('lb-date-label');
+    const saLabel   = document.getElementById('sa-lb-date-label');
+
+    if (userCont && !isSuperAdmin()) containers.push({ cont: userCont, label: userLabel });
+    if (saCont   && isSuperAdmin())  containers.push({ cont: saCont,   label: saLabel   });
+    if (!containers.length) { _lbLoading = false; return; }
+    containers.forEach(({ cont }) => { cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>'; });
+
+    try {
+        const usersSnap = await db.collection('users').get();
+
+        // Determine the level(s) to show based on role
+        let levelFilter;
+        if (isSuperAdmin()) {
+            const allCats = ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
+            levelFilter = _lbCategoryFilter ? [_lbCategoryFilter] : allCats;
+        } else if (isCategoryAdmin()) {
+            levelFilter = [userProfile.adminCategory];
+        } else {
+            levelFilter = [userProfile.level || 'Senior Batch'];
+        }
+
+        const filtered = usersSnap.docs.filter(doc => levelFilter.includes(doc.data().level || 'Senior Batch'));
+
+        // Fetch yesterday's sadhana doc for all users in parallel
+        const daySnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').doc(targetDate).get()));
+
+        const rows = [];
+        filtered.forEach((uDoc, i) => {
+            const u    = uDoc.data();
+            const snap = daySnaps[i];
+            if (!snap.exists) return;
+            const d = snap.data();
+            if (!d.sleepTime || d.sleepTime === 'NR') return;
+            rows.push({
+                uid:      uDoc.id,
+                name:     u.name    || '—',
+                photo:    u.photoURL || null,
+                level:    (u.level  || '').replace(' Coordinator','').replace('Senior Batch','SB'),
+                score:    d.totalScore ?? 0,
+                pct:      d.dayPercent  ?? 0,
+                rejected: !!d.rejected
+            });
+        });
+        rows.sort((a, b) => b.score - a.score);
+
+        const dateDisp = new Date(targetDate + 'T00:00:00').toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+        const MEDALS   = ['🥇','🥈','🥉'];
+
+        // Build SA filter bar (shown only in SA leaderboard)
+        const filterBar = isSuperAdmin() ? `
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+            <button class="sa-lvl-btn lb-filter-btn${!_lbCategoryFilter?' active':''}" onclick="setLbFilter('',this)">All</button>
+            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='Senior Batch'?' active':''}" onclick="setLbFilter('Senior Batch',this)">Senior Batch</button>
+            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='IGF & IYF Coordinator'?' active':''}" onclick="setLbFilter('IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
+            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='ICF Coordinator'?' active':''}" onclick="setLbFilter('ICF Coordinator',this)">ICF</button>
+        </div>` : '';
+
+        const listHtml = rows.length === 0
+            ? '<p style="color:#aaa;text-align:center;padding:20px;">No entries found for this date.</p>'
+            : rows.map((r, i) => {
+                const isSelf     = r.uid === currentUser.uid;
+                const scoreColor = r.score >= 100 ? '#15803d' : r.score >= 60 ? '#d97706' : '#dc2626';
+                const medal      = i < 3 ? MEDALS[i] : `<span style="font-size:13px;font-weight:700;color:#9ca3af;">#${i+1}</span>`;
+                return `<div class="lb-row${isSelf ? ' lb-self' : ''}">
+                    <div class="lb-rank">${medal}</div>
+                    ${avatarHtml(r.photo, r.name, 34)}
+                    <div class="lb-name">${r.name}<span style="font-size:10px;color:#9ca3af;margin-left:5px;">${r.level}</span></div>
+                    <div class="lb-score-wrap">
+                        <div class="lb-score" style="color:${scoreColor};">${r.rejected ? '🚫' : r.score}</div>
+                        <div class="lb-pct">${r.rejected ? 'Rejected' : r.pct + '%'}</div>
+                    </div>
+                </div>`;
+            }).join('');
+
+        containers.forEach(({ cont, label }) => {
+            if (label) label.textContent = `${dateDisp} · ${rows.length} submitted`;
+            cont.innerHTML = filterBar + listHtml;
+        });
+    } catch (e) {
+        containers.forEach(({ cont }) => { cont.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Error loading leaderboard.</p>`; });
+    }
+    _lbLoading = false;
+};
+
+// ═══════════════════════════════════════════════════════════
+// 23. TASKS
+// ═══════════════════════════════════════════════════════════
+
+// Regular user view — loads tasks applicable to their category
+window.loadTasks = async () => {
+    const cont = document.getElementById('tasks-container');
+    if (!cont) return;
+    cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+    try {
+        const snap  = await db.collection('tasks').orderBy('createdAt', 'desc').get();
+        const level = userProfile.level || '';
+        const tasks = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(t => t.targetCategory === 'all' || t.targetCategory === level);
+        if (tasks.length === 0) {
+            cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px;">No tasks posted yet.</p>';
+            return;
+        }
+        cont.innerHTML = tasks.map(t => buildTaskCard(t, false)).join('');
+    } catch (e) {
+        cont.innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error loading tasks.</p>';
+    }
+};
+
+// SA view — loads all tasks with delete button
+window.loadSATasks = async () => {
+    const cont = document.getElementById('sa-tasks-container');
+    if (!cont) return;
+    cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
+    try {
+        const snap  = await db.collection('tasks').orderBy('createdAt', 'desc').get();
+        if (snap.empty) {
+            cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px;">No tasks posted yet.</p>';
+            return;
+        }
+        cont.innerHTML = snap.docs.map(d => buildTaskCard({ id: d.id, ...d.data() }, true)).join('');
+    } catch (e) {
+        cont.innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error loading tasks.</p>';
+    }
+};
+
+function buildTaskCard(t, showDelete) {
+    const catLabel = t.targetCategory === 'all' ? '📢 All' : t.targetCategory;
+    const dateStr  = t.createdAt ? new Date(t.createdAt.toDate ? t.createdAt.toDate() : t.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '';
+    const linkHtml = t.attachmentUrl
+        ? `<a href="${t.attachmentUrl}" target="_blank" rel="noopener" class="task-link">🔗 ${t.attachmentUrl}</a>`
+        : '';
+    const delBtn = showDelete
+        ? `<button class="task-del-btn" onclick="deleteTask('${t.id}')" title="Delete task">🗑</button>`
+        : '';
+    return `<div class="task-card">
+        ${delBtn}
+        <div class="task-title">${t.title || '(No title)'}</div>
+        ${t.body ? `<div class="task-body">${t.body}</div>` : ''}
+        ${linkHtml}
+        <div class="task-meta" style="margin-top:8px;">
+            <span class="task-cat-badge">${catLabel}</span>
+            Posted by ${t.createdByName || 'Admin'} · ${dateStr}
+        </div>
+    </div>`;
+}
+
+window.postTask = async () => {
+    if (!isSuperAdmin()) return;
+    const title = document.getElementById('task-title-input').value.trim();
+    if (!title) { alert('Please enter a title for the task.'); return; }
+    const body     = document.getElementById('task-body-input').value.trim();
+    const url      = document.getElementById('task-url-input').value.trim();
+    const category = document.getElementById('task-category-sel').value;
+    try {
+        await db.collection('tasks').add({
+            title,
+            body:           body  || '',
+            attachmentUrl:  url   || '',
+            targetCategory: category,
+            createdByName:  userProfile.name || 'Super Admin',
+            createdAt:      firebase.firestore.FieldValue.serverTimestamp()
+        });
+        document.getElementById('task-title-input').value = '';
+        document.getElementById('task-body-input').value  = '';
+        document.getElementById('task-url-input').value   = '';
+        document.getElementById('task-category-sel').value = 'all';
+        await loadSATasks();
+        alert('✅ Task posted!');
+    } catch (e) {
+        alert('❌ Failed to post task: ' + e.message);
+    }
+};
+
+window.deleteTask = async (taskId) => {
+    if (!isSuperAdmin()) return;
+    if (!confirm('Delete this task? This cannot be undone.')) return;
+    try {
+        await db.collection('tasks').doc(taskId).delete();
+        await loadSATasks();
+    } catch (e) {
+        alert('❌ Failed to delete: ' + e.message);
+    }
+};

@@ -847,6 +847,32 @@
         .perf-legend-act  { font-size:10px; color:#999; }
         .perf-empty { text-align:center; color:#aaa; font-size:12px; padding:16px 0; }
         .perf-tab-btn:hover { opacity:0.85; }
+
+        /* ── AVATAR ── */
+        .av { width:36px;height:36px;border-radius:50%;background:#dbeafe;border:2px solid #3498db;
+              display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0; }
+        .av img { width:100%;height:100%;object-fit:cover;border-radius:50%; }
+        .av-init { font-size:13px;font-weight:700;color:#1A3C5E; }
+        .av-lg { width:64px;height:64px; }
+        .av-lg .av-init { font-size:22px; }
+
+        /* ── LEADERBOARD ── */
+        .lb-row { display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:7px;background:#f8fafc;border:1px solid #f0f0f0; }
+        .lb-row.lb-self { background:#eff6ff;border-color:#bfdbfe; }
+        .lb-rank { font-size:18px;width:28px;text-align:center;flex-shrink:0; }
+        .lb-name { flex:1;font-weight:600;font-size:13px;color:#1a252f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+        .lb-score-wrap { text-align:right;flex-shrink:0; }
+        .lb-score { font-weight:800;font-size:15px; }
+        .lb-pct { font-size:11px;color:#6b7280; }
+
+        /* ── TASKS ── */
+        .task-card { background:white;border-radius:10px;border:1px solid #e5e7eb;padding:14px 16px;margin-bottom:10px; }
+        .task-title { font-weight:700;font-size:14px;color:#1A3C5E;margin-bottom:5px; }
+        .task-body { font-size:13px;color:#374151;margin-bottom:8px;white-space:pre-wrap;line-height:1.5; }
+        .task-meta { font-size:11px;color:#9ca3af; }
+        .task-cat-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;margin-right:6px; }
+        .task-link { display:inline-block;margin-top:6px;color:#3498db;font-size:12px;word-break:break-all; }
+        .task-del-btn { float:right;background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;width:auto;padding:0;margin:0;line-height:1; }
     </style>
 </head>
 <body>
@@ -873,6 +899,15 @@
     <section id="profile-section" class="card hidden">
         <h2 id="profile-title" style="color:var(--primary);margin-bottom:4px;">Complete Your Profile</h2>
         <p id="profile-subtitle" style="color:var(--muted);font-size:13px;margin-bottom:20px;">Tell us about yourself to get started</p>
+        <!-- Profile picture -->
+        <div style="text-align:center;margin-bottom:18px;">
+            <div class="av av-lg" id="profile-pic-av" style="width:72px;height:72px;margin:0 auto 10px;">
+                <img id="profile-pic-preview" src="" alt="" style="display:none;">
+                <span class="av-init" id="profile-pic-init"></span>
+            </div>
+            <label for="profile-pic-input" style="cursor:pointer;background:#f1f5f9;border:1px solid #ddd;padding:6px 16px;border-radius:20px;font-size:13px;font-weight:600;color:#374151;display:inline-block;">📷 Change Photo</label>
+            <input type="file" id="profile-pic-input" accept="image/*" style="display:none;" onchange="handleProfilePicSelect(this)">
+        </div>
         <form id="profile-form">
             <label class="form-label">Full Name</label>
             <input type="text" id="profile-name" placeholder="Full Name" required>
@@ -913,10 +948,16 @@
                 <button class="user-menu-btn" onclick="openUserSidebar()" title="Menu">&#9776;</button>
                 <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel"><img src="admin-panel.png" style="width:22px;height:22px;object-fit:contain;" onerror="this.outerHTML='&#9881;'"></button>
             </div>
-            <!-- Center: name + role -->
-            <div style="flex:1;padding:0 10px;">
-                <div class="header-name" id="user-display-name"></div>
-                <div class="header-role" id="user-role-display"></div>
+            <!-- Center: avatar + name + role -->
+            <div style="flex:1;padding:0 10px;display:flex;align-items:center;gap:9px;min-width:0;">
+                <div class="av" id="header-av" style="flex-shrink:0;">
+                    <img id="header-av-img" src="" alt="" style="display:none;">
+                    <span class="av-init" id="header-av-init"></span>
+                </div>
+                <div style="min-width:0;">
+                    <div class="header-name" id="user-display-name"></div>
+                    <div class="header-role" id="user-role-display"></div>
+                </div>
             </div>
             <!-- Right: logout only -->
             <button id="logout-btn" class="btn-danger btn-sm">Logout</button>
@@ -941,12 +982,16 @@
             <button class="tab-btn"        onclick="switchTab('reports')">My Reports</button>
             <button class="tab-btn"        onclick="switchTab('progress')">My Progress</button>
             <button class="tab-btn"        onclick="switchTab('wcr')" id="user-wcr-tab" style="display:none;">&#128202; WCR</button>
+            <button class="tab-btn"        onclick="switchTab('leaderboard')" id="user-lb-tab">&#127942; Leaderboard</button>
+            <button class="tab-btn"        onclick="switchTab('tasks')" id="user-tasks-tab">&#128203; Tasks</button>
         </div>
         <!-- Super Admin direct tabs (hidden for regular users) -->
         <div id="sa-nav-tabs" class="nav-tabs" style="margin-bottom:16px;display:none;">
             <button class="tab-btn sa-tab active" onclick="saTab('reports',this)">&#128202; WCR</button>
             <button class="tab-btn sa-tab"        onclick="saTab('usermgmt',this)">&#128100; Individual Reports</button>
             <button class="tab-btn sa-tab"        onclick="saTab('inactive',this)">&#9888; Inactive Devotees</button>
+            <button class="tab-btn sa-tab"        onclick="saTab('leaderboard',this)">&#127942; Leaderboard</button>
+            <button class="tab-btn sa-tab"        onclick="saTab('tasks',this)">&#128203; Tasks</button>
         </div>
 
         <!-- SADHANA ENTRY -->
@@ -1052,6 +1097,26 @@
             </div>
         </div>
 
+        <!-- LEADERBOARD PANEL (shared for regular users; SA uses sub-panel) -->
+        <div id="leaderboard-panel" class="tab-panel">
+            <div class="card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                    <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Daily Leaderboard</h3>
+                    <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">&#8635; Refresh</button>
+                </div>
+                <div id="lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:12px;"></div>
+                <div id="leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
+            </div>
+        </div>
+
+        <!-- TASKS PANEL (for regular users) -->
+        <div id="tasks-panel" class="tab-panel">
+            <div class="card">
+                <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128203; Tasks &amp; Announcements</h3>
+                <div id="tasks-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
+            </div>
+        </div>
+
         <!-- ADMIN PANEL -->
         <div id="admin-panel" class="tab-panel">
 
@@ -1133,6 +1198,36 @@
                     </div>
                     <div id="admin-inactive-container"></div>
                 </div>
+
+                <!-- SA Leaderboard sub-panel -->
+                <div id="admin-sub-leaderboard" class="admin-sub-panel hidden">
+                    <div class="card">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                            <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Daily Leaderboard</h3>
+                            <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">&#8635; Refresh</button>
+                        </div>
+                        <div id="sa-lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:12px;"></div>
+                        <div id="sa-leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
+                    </div>
+                </div>
+
+                <!-- SA Tasks sub-panel -->
+                <div id="admin-sub-tasks" class="admin-sub-panel hidden">
+                    <div class="card" style="margin-bottom:14px;">
+                        <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128203; Post a Task / Announcement</h3>
+                        <input type="text" id="task-title-input" placeholder="Title (required)" style="margin-bottom:8px;">
+                        <textarea id="task-body-input" placeholder="Description / instructions (optional)" rows="3" style="width:100%;padding:10px 13px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;margin-bottom:8px;font-family:inherit;"></textarea>
+                        <input type="url" id="task-url-input" placeholder="Attachment URL (optional — Google Drive, YouTube, etc.)" style="margin-bottom:8px;">
+                        <select id="task-category-sel" style="margin-bottom:10px;">
+                            <option value="all">📢 All Categories</option>
+                            <option value="Senior Batch">Senior Batch only</option>
+                            <option value="IGF & IYF Coordinator">IGF &amp; IYF only</option>
+                            <option value="ICF Coordinator">ICF only</option>
+                        </select>
+                        <button onclick="postTask()" class="btn-primary" style="width:auto;padding:9px 24px;">Post Task</button>
+                    </div>
+                    <div id="sa-tasks-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
+                </div>
             </div>
 
         </div>
@@ -1160,6 +1255,14 @@
                     <span>Inactive Devotees</span>
                     <span id="inactive-tab-badge" class="inactive-tab-count"></span>
                 </button>
+                <button class="drawer-nav-item" onclick="selectAdminSection('leaderboard', this)">
+                    <span class="drawer-icon">&#127942;</span>
+                    <span>Leaderboard</span>
+                </button>
+                <button class="drawer-nav-item" onclick="selectAdminSection('tasks', this)">
+                    <span class="drawer-icon">&#128203;</span>
+                    <span>Tasks</span>
+                </button>
             </nav>
         </div>
 
@@ -1170,8 +1273,16 @@
         <div id="user-sidebar" class="user-sidebar">
             <div class="user-sidebar-header">
                 <button class="user-sidebar-close" onclick="closeUserSidebar()">&#10005;</button>
-                <div class="user-sidebar-name" id="sidebar-user-name">—</div>
-                <div class="user-sidebar-role" id="sidebar-user-role">—</div>
+                <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+                    <div class="av av-lg" id="sidebar-av" style="border-color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.15);">
+                        <img id="sidebar-av-img" src="" alt="" style="display:none;">
+                        <span class="av-init" id="sidebar-av-init" style="color:white;font-size:20px;"></span>
+                    </div>
+                    <div>
+                        <div class="user-sidebar-name" id="sidebar-user-name">—</div>
+                        <div class="user-sidebar-role" id="sidebar-user-role">—</div>
+                    </div>
+                </div>
             </div>
             <div class="sidebar-nav">
                 <button class="sidebar-item" onclick="closeUserSidebar(); openProfileEdit();">
