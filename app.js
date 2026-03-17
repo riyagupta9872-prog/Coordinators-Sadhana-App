@@ -473,6 +473,8 @@ async function loadUserWCR() {
 
     const sadhanaCache = new Map();
 
+    window._wcrUserList = [];
+
     let tHtml = `<div style="overflow-x:auto;"><table class="comp-table" style="min-width:500px;">
         <thead><tr>
             <th class="comp-th comp-th-name">Name</th>
@@ -490,8 +492,11 @@ async function loadUserWCR() {
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
         const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
 
+        const wcrIdx = window._wcrUserList.length;
+        window._wcrUserList.push({ uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user' });
+
         tHtml += `<tr style="background:${stripeBg}">
-            <td class="comp-td comp-name">${u.name}</td>
+            <td class="comp-td comp-name" onclick="openWCRUser(${wcrIdx})" style="cursor:pointer;" title="View ${u.name||'user'}">${u.name}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>`;
 
         weeks.forEach(w => {
@@ -634,6 +639,13 @@ window.closeUAC = () => {
 window.uacHistory  = () => { closeUAC(); openUserModal(_uacUID, _uacName); };
 window.uacExcel    = () => { closeUAC(); downloadUserExcel(_uacUID, _uacName); };
 window.uacProgress = () => { closeUAC(); openProgressModal(_uacUID, _uacName); };
+
+// Called when a name in the WCR table is clicked — opens the action sheet
+window.openWCRUser = (idx) => {
+    const u = (window._wcrUserList || [])[idx];
+    if (!u) return;
+    openUAC(u.uid, u.name, u.level, u.chanting, u.rounds, u.role);
+};
 window.uacRoleChange = async (sel) => {
     const val = sel.value; if (!val) return;
     await handleRoleDropdown(_uacUID, { value: val });
@@ -737,7 +749,7 @@ function loadReports(userId, containerId) {
                     const rejectedBadge = e.rejected
                         ? `<span class="rejected-badge" title="Rejected by ${(e.rejectedBy||'Admin').replace(/'/g,"'")}${e.rejectionReason?': '+e.rejectionReason:''}">🚫</span>`
                         : '';
-                    const editBtn = isSuperAdmin() && !isNR
+                    const editBtn = isSuperAdmin()
                         ? `<button onclick="openEditModal('${userId}','${e.id}')" class="btn-edit-cell" title="Edit this entry">Edit</button> `
                         : '';
                     let rejectBtn = '';
@@ -1525,6 +1537,7 @@ document.getElementById('profile-form').onsubmit = async (e) => {
 // 15. PASSWORD MODAL
 // ═══════════════════════════════════════════════════════════
 window.openPasswordModal = () => {
+    document.getElementById('pwd-current').value = '';
     document.getElementById('pwd-new').value     = '';
     document.getElementById('pwd-confirm').value = '';
     document.getElementById('password-modal').classList.remove('hidden');
@@ -1533,19 +1546,23 @@ window.closePasswordModal = () => {
     document.getElementById('password-modal').classList.add('hidden');
 };
 window.submitPasswordChange = async () => {
+    const curPwd  = document.getElementById('pwd-current').value.trim();
     const newPwd  = document.getElementById('pwd-new').value.trim();
     const confPwd = document.getElementById('pwd-confirm').value.trim();
+    if (!curPwd)           { alert('❌ Please enter your current password.'); return; }
     if (!newPwd)           { alert('❌ Please enter a new password.'); return; }
     if (newPwd.length < 6) { alert('❌ Password must be at least 6 characters.'); return; }
     if (newPwd !== confPwd){ alert('❌ Passwords do not match!'); return; }
     if (!confirm('🔑 Confirm password change?')) return;
     try {
+        const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, curPwd);
+        await currentUser.reauthenticateWithCredential(cred);
         await currentUser.updatePassword(newPwd);
         closePasswordModal();
         alert('✅ Password changed successfully!');
     } catch (err) {
-        if (err.code === 'auth/requires-recent-login') {
-            alert('⚠️ For security, please logout and login again, then try changing your password.');
+        if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            alert('❌ Current password is incorrect. Please try again.');
         } else {
             alert('❌ Failed: ' + err.message);
         }
