@@ -882,6 +882,10 @@
         .aa-bar-wrap { position:relative;height:220px; }
         .aa-summary-item { font-size:12px;color:#374151;margin-bottom:6px; }
         .aa-summary-item strong { color:#1A3C5E; }
+
+        /* ── Task attachment ── */
+        #task-file-preview { display:none; }
+        #task-file-preview.visible { display:flex !important; }
     </style>
 </head>
 <body>
@@ -931,10 +935,8 @@
             <label class="form-label">Chanting Category</label>
             <select id="profile-chanting" required>
                 <option value="" disabled selected>Select chanting level</option>
-                <option value="Level-1">Level-1 (1–4 Rounds)</option>
-                <option value="Level-2">Level-2 (5–8 Rounds)</option>
-                <option value="Level-3">Level-3 (9–15 Rounds)</option>
-                <option value="Level-4">Level-4 (16 Rounds)</option>
+                <option value="Level-1">Level-1 (9–15 Rounds)</option>
+                <option value="Level-2">Level-2 (16 Rounds)</option>
             </select>
 
             <label class="form-label">Current Exact Rounds</label>
@@ -1244,7 +1246,22 @@
                         <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128203; Post a Task / Announcement</h3>
                         <input type="text" id="task-title-input" placeholder="Title (required)" style="margin-bottom:8px;">
                         <textarea id="task-body-input" placeholder="Description / instructions (optional)" rows="3" style="width:100%;padding:10px 13px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;margin-bottom:8px;font-family:inherit;"></textarea>
-                        <input type="url" id="task-url-input" placeholder="Attachment URL (optional — Google Drive, YouTube, etc.)" style="margin-bottom:8px;">
+                        <!-- Attachment: file browse OR paste URL -->
+                        <div style="margin-bottom:8px;">
+                            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:5px;">Attachment <span style="font-weight:400;color:#aaa;">(optional)</span></label>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                                <label for="task-file-input" style="cursor:pointer;background:#f1f5f9;border:1.5px solid #ddd;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:#374151;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;">
+                                    📎 Browse File
+                                </label>
+                                <input type="file" id="task-file-input" style="display:none;" onchange="handleTaskFileSelect(this)">
+                                <span style="font-size:12px;color:#aaa;">or paste a link below</span>
+                            </div>
+                            <div id="task-file-preview" style="display:none;margin-top:6px;padding:7px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;color:#15803d;display:flex;align-items:center;gap:8px;">
+                                <span id="task-file-name"></span>
+                                <button type="button" onclick="clearTaskFile()" style="width:auto;padding:0;margin:0;background:none;border:none;color:#dc2626;font-size:14px;cursor:pointer;line-height:1;">✕</button>
+                            </div>
+                            <input type="text" id="task-url-input" placeholder="Paste URL — Google Drive, YouTube, WhatsApp link, etc." style="margin-top:6px;width:100%;padding:9px 13px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        </div>
                         <select id="task-category-sel" style="margin-bottom:10px;">
                             <option value="all">📢 All Categories</option>
                             <option value="Senior Batch">Senior Batch only</option>
