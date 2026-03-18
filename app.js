@@ -2482,9 +2482,15 @@ window.loadSATasks = async () => {
 function buildTaskCard(t, showDelete) {
     const catLabel = t.targetCategory === 'all' ? '📢 All' : t.targetCategory;
     const dateStr  = t.createdAt ? new Date(t.createdAt.toDate ? t.createdAt.toDate() : t.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '';
-    const linkHtml = t.attachmentUrl
-        ? `<a href="${t.attachmentUrl}" target="_blank" rel="noopener" class="task-link">🔗 ${t.attachmentUrl}</a>`
-        : '';
+    // Attachment: file (base64) takes priority, then URL
+    let linkHtml = '';
+    if (t.attachmentData && t.attachmentName) {
+        // Downloadable file stored as base64
+        linkHtml = `<a href="${t.attachmentData}" download="${t.attachmentName}" class="task-link" style="word-break:break-all;">📎 ${t.attachmentName}</a>`;
+    } else if (t.attachmentUrl) {
+        const display = t.attachmentUrl.length > 60 ? t.attachmentUrl.slice(0,57) + '…' : t.attachmentUrl;
+        linkHtml = `<a href="${t.attachmentUrl}" target="_blank" rel="noopener" class="task-link">🔗 ${display}</a>`;
+    }
     const delBtn = showDelete
         ? `<button class="task-del-btn" onclick="deleteTask('${t.id}')" title="Delete task">🗑</button>`
         : '';
@@ -2500,6 +2506,51 @@ function buildTaskCard(t, showDelete) {
     </div>`;
 }
 
+
+// ── Task file attachment helpers ────────────────────────
+let _taskFileBase64 = null;
+let _taskFileName   = null;
+let _taskFileMime   = null;
+
+window.handleTaskFileSelect = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+
+    // Size check — 5MB max (Firestore doc limit)
+    if (file.size > 5 * 1024 * 1024) {
+        alert('❌ File too large. Maximum size is 5 MB.\nFor larger files, upload to Google Drive and paste the link instead.');
+        input.value = '';
+        return;
+    }
+
+    _taskFileName = file.name;
+    _taskFileMime = file.type || 'application/octet-stream';
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        _taskFileBase64 = ev.target.result; // full dataURL
+        // Show preview
+        const preview  = document.getElementById('task-file-preview');
+        const nameSpan = document.getElementById('task-file-name');
+        if (preview)  preview.classList.add('visible');
+        if (nameSpan) nameSpan.textContent = '📄 ' + _taskFileName;
+        // Clear URL field to avoid confusion
+        const urlInput = document.getElementById('task-url-input');
+        if (urlInput) urlInput.value = '';
+    };
+    reader.readAsDataURL(file);
+};
+
+window.clearTaskFile = () => {
+    _taskFileBase64 = null;
+    _taskFileName   = null;
+    _taskFileMime   = null;
+    const preview  = document.getElementById('task-file-preview');
+    if (preview) preview.classList.remove('visible');
+    const input = document.getElementById('task-file-input');
+    if (input) input.value = '';
+};
+
 window.postTask = async () => {
     if (!isSuperAdmin()) return;
     const title = document.getElementById('task-title-input').value.trim();
@@ -2507,19 +2558,38 @@ window.postTask = async () => {
     const body     = document.getElementById('task-body-input').value.trim();
     const url      = document.getElementById('task-url-input').value.trim();
     const category = document.getElementById('task-category-sel').value;
+
+    // Build attachment object — file takes priority over URL
+    let attachmentUrl  = '';
+    let attachmentName = '';
+    let attachmentData = ''; // base64 for files
+    if (_taskFileBase64) {
+        attachmentData = _taskFileBase64;
+        attachmentName = _taskFileName || 'attachment';
+        attachmentUrl  = '';
+    } else if (url) {
+        attachmentUrl  = url;
+        attachmentName = '';
+        attachmentData = '';
+    }
+
     try {
         await db.collection('tasks').add({
             title,
             body:           body  || '',
-            attachmentUrl:  url   || '',
+            attachmentUrl,
+            attachmentName,
+            attachmentData, // base64 string for uploaded files (max 5MB)
             targetCategory: category,
             createdByName:  userProfile.name || 'Super Admin',
             createdAt:      firebase.firestore.FieldValue.serverTimestamp()
         });
-        document.getElementById('task-title-input').value = '';
-        document.getElementById('task-body-input').value  = '';
-        document.getElementById('task-url-input').value   = '';
+        // Clear form
+        document.getElementById('task-title-input').value  = '';
+        document.getElementById('task-body-input').value   = '';
+        document.getElementById('task-url-input').value    = '';
         document.getElementById('task-category-sel').value = 'all';
+        clearTaskFile();
         await loadSATasks();
         alert('✅ Task posted!');
     } catch (e) {
