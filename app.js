@@ -448,13 +448,16 @@ auth.onAuthStateChanged((user) => {
                 showSection('profile');
                 return;
             }
-            // Auto-set joinedDate for old users from their first sadhana entry
-            if (!userProfile.joinedDate && userProfile.level) {
+            // Auto-fix joinedDate — set from first sadhana entry if missing or wrong
+            if (userProfile.level) {
                 db.collection('users').doc(user.uid).collection('sadhana')
                     .orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get()
                     .then(snap => {
-                        const firstDate = snap.empty ? localDateStr(0) : snap.docs[0].id;
-                        db.collection('users').doc(user.uid).set({ joinedDate: firstDate }, { merge: true });
+                        if (snap.empty) return;
+                        const firstDate = snap.docs[0].id;
+                        if (!userProfile.joinedDate || userProfile.joinedDate > firstDate) {
+                            db.collection('users').doc(user.uid).set({ joinedDate: firstDate }, { merge: true });
+                        }
                     }).catch(() => {});
             }
             if (!_dashboardInited) {
@@ -1951,8 +1954,12 @@ document.getElementById('profile-form').onsubmit = async (e) => {
         role:             userProfile?.role || 'user'
     };
     if (window._profilePicDataUrl) data.photoURL = window._profilePicDataUrl;
-    // Preserve or set joinedDate
-    if (!userProfile?.joinedDate) data.joinedDate = localDateStr(0);
+    // Preserve or set joinedDate — use first sadhana entry for old users
+    if (!userProfile?.joinedDate) {
+        const firstSnap = await db.collection('users').doc(currentUser.uid)
+            .collection('sadhana').orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get();
+        data.joinedDate = firstSnap.empty ? localDateStr(0) : firstSnap.docs[0].id;
+    }
     await db.collection('users').doc(currentUser.uid).set(data, { merge:true });
     alert('✅ Profile saved!');
     location.reload();
