@@ -25,8 +25,12 @@ const isSuperAdmin    = () => userProfile?.role === 'superAdmin';
 const isCategoryAdmin = () => userProfile?.role === 'admin';
 const isAnyAdmin      = () => isSuperAdmin() || isCategoryAdmin();
 const visibleCategories = () => {
-    if (isSuperAdmin()) return ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
-    if (isCategoryAdmin()) return [userProfile.adminCategory];
+    if (isSuperAdmin()) return ['Senior Batch','IGF Co-ordinator','IYF Co-ordinator','ICF Coordinator'];
+    if (isCategoryAdmin()) {
+        // Old admins with "IGF & IYF Coordinator" see both new categories
+        if (userProfile.adminCategory === 'IGF & IYF Coordinator') return ['IGF Co-ordinator','IYF Co-ordinator'];
+        return [userProfile.adminCategory];
+    }
     return [];
 };
 
@@ -433,6 +437,26 @@ auth.onAuthStateChanged((user) => {
                 showSection('profile');
                 return;
             }
+            // Prompt old users with "IGF & IYF Coordinator" to pick IGF or IYF
+            if (userProfile.level === 'IGF & IYF Coordinator') {
+                document.getElementById('profile-title').textContent    = 'Update Your Position';
+                document.getElementById('profile-subtitle').textContent = 'IGF & IYF has been split — please select whether you are IGF or IYF';
+                document.getElementById('profile-name').value           = userProfile.name || '';
+                document.getElementById('profile-level').value          = '';
+                document.getElementById('profile-chanting').value       = userProfile.chantingCategory || '';
+                document.getElementById('profile-exact-rounds').value   = userProfile.exactRounds || '';
+                showSection('profile');
+                return;
+            }
+            // Auto-set joinedDate for old users from their first sadhana entry
+            if (!userProfile.joinedDate && userProfile.level) {
+                db.collection('users').doc(user.uid).collection('sadhana')
+                    .orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get()
+                    .then(snap => {
+                        const firstDate = snap.empty ? localDateStr(0) : snap.docs[0].id;
+                        db.collection('users').doc(user.uid).set({ joinedDate: firstDate }, { merge: true });
+                    }).catch(() => {});
+            }
             if (!_dashboardInited) {
                 _dashboardInited = true;
                 initDashboard();
@@ -579,7 +603,7 @@ async function loadUserWCR() {
         sadhanaCache.set(uDoc.id, ents);
 
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
-        const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
+        const lvlShort = (u.level||'SB').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
 
         const wcrIdx = window._wcrUserList.length;
         window._wcrUserList.push({ uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user' });
@@ -910,7 +934,8 @@ window.saLvlFilter = (panel, level, btn) => {
             const txt  = cell ? cell.textContent.trim() : '';
             row.style.display = (
                 (level === 'SB'      && txt === 'SB')       ||
-                (level === 'IGF'     && txt === 'IGF & IYF') ||
+                (level === 'IGF'     && txt === 'IGF')       ||
+                (level === 'IYF'     && txt === 'IYF')       ||
                 (level === 'ICF'     && txt === 'ICF')
             ) ? '' : 'none';
         });
@@ -946,9 +971,9 @@ window.openUAC = (uid, name, level, chanting, rounds, role) => {
         if (role === 'superAdmin') {
             opts += '<option value="demote">🚫 Revoke Super Admin</option>';
         } else if (role === 'admin') {
-            opts += '<option value="superAdmin">👑 Make Super Admin</option><option value="sb">⭐ Shift to Senior Batch</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF & IYF Coordinator">🛡️ Admin — IGF & IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option><option value="demote">🚫 Revoke Admin</option>';
+            opts += '<option value="superAdmin">👑 Make Super Admin</option><option disabled>── Shift Category ──</option><option value="shift:Senior Batch">⭐ Shift to Senior Batch</option><option value="shift:IGF Co-ordinator">⭐ Shift to IGF Co-ordinator</option><option value="shift:IYF Co-ordinator">⭐ Shift to IYF Co-ordinator</option><option value="shift:ICF Coordinator">⭐ Shift to ICF Coordinator</option><option disabled>── Make Admin ──</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF Co-ordinator">🛡️ Admin — IGF</option><option value="cat:IYF Co-ordinator">🛡️ Admin — IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option><option value="demote">🚫 Revoke Admin</option>';
         } else {
-            opts += '<option value="superAdmin">👑 Make Super Admin</option><option value="sb">⭐ Shift to Senior Batch</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF & IYF Coordinator">🛡️ Admin — IGF & IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option>';
+            opts += '<option value="superAdmin">👑 Make Super Admin</option><option disabled>── Shift Category ──</option><option value="shift:Senior Batch">⭐ Shift to Senior Batch</option><option value="shift:IGF Co-ordinator">⭐ Shift to IGF Co-ordinator</option><option value="shift:IYF Co-ordinator">⭐ Shift to IYF Co-ordinator</option><option value="shift:ICF Coordinator">⭐ Shift to ICF Coordinator</option><option disabled>── Make Admin ──</option><option value="cat:Senior Batch">🛡️ Admin — Senior Batch</option><option value="cat:IGF Co-ordinator">🛡️ Admin — IGF</option><option value="cat:IYF Co-ordinator">🛡️ Admin — IYF</option><option value="cat:ICF Coordinator">🛡️ Admin — ICF</option>';
         }
         document.getElementById('uac-role-sel').innerHTML = opts;
         roleWrap.style.display = '';
@@ -1497,7 +1522,7 @@ async function loadAdminPanel() {
         }
 
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
-        const lvlShort = (u.level||'SB').replace(' Coordinator','').replace('Senior Batch','SB');
+        const lvlShort = (u.level||'SB').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
         const cmpIdx = window._adminCmpUserList.length;
         window._adminCmpUserList.push({ uid: uDoc.id, name: u.name||'', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user' });
         tHtml += `<tr style="background:${stripeBg}">
@@ -1607,19 +1632,23 @@ async function loadAdminPanel() {
 window.handleRoleDropdown = async (uid, sel) => {
     const val = sel.value; sel.value='';
     if (!val) return;
-    let newRole, cat=null, msg='';
-    if (val==='superAdmin')          { newRole='superAdmin'; msg='👑 Make this user SUPER ADMIN?\nFull access to all categories.'; }
-    else if (val==='sb')             { newRole='user'; cat=null; msg='⭐ Shift this devotee to SENIOR BATCH?'; }
-    else if (val.startsWith('cat:')) { newRole='admin'; cat=val.slice(4); msg=`🛡️ Assign as Category Admin for:\n"${cat}"?`; }
-    else if (val==='demote')         { newRole='user'; msg='🚫 Revoke all admin access?'; }
+    let newRole, cat=null, msg='', shiftLevel=null;
+    if (val==='superAdmin')              { newRole='superAdmin'; msg='👑 Make this user SUPER ADMIN?\nFull access to all categories.'; }
+    else if (val.startsWith('shift:'))   { shiftLevel=val.slice(6); newRole='user'; cat=null; msg=`⭐ Shift this devotee to ${shiftLevel}?`; }
+    else if (val.startsWith('cat:'))     { newRole='admin'; cat=val.slice(4); msg=`🛡️ Assign as Category Admin for:\n"${cat}"?`; }
+    else if (val==='demote')             { newRole='user'; msg='🚫 Revoke all admin access?'; }
     else return;
     if (!confirm(msg)) return;
     if (!confirm('Final confirmation?')) return;
     const updateData = { role:newRole, adminCategory:cat };
-    if (val === 'sb') updateData.level = 'Senior Batch';
+    if (shiftLevel) updateData.level = shiftLevel;
     await db.collection('users').doc(uid).update(updateData);
-    alert(val === 'sb' ? '✅ Devotee shifted to Senior Batch!' : '✅ Role updated!');
-    if (window._sendRoleNotification) window._sendRoleNotification(uid, '', val, cat);
+    alert(shiftLevel ? `✅ Devotee shifted to ${shiftLevel}!` : '✅ Role updated!');
+    if (shiftLevel) {
+        if (window._sendRoleNotification) window._sendRoleNotification(uid, '', 'shift', shiftLevel);
+    } else {
+        if (window._sendRoleNotification) window._sendRoleNotification(uid, '', val, cat);
+    }
     adminPanelLoaded = false;
     loadAdminPanel();
 };
@@ -2153,9 +2182,9 @@ async function checkSadhanaReminder() {
 window._sendRoleNotification = async (userId, userName, newRole, category) => {
     let msg = '';
     if (newRole === 'superAdmin') msg = 'You have been promoted to Super Admin!';
-    else if (newRole === 'admin' && category) msg = `You have been made Admin — ${category.replace(' Coordinator','')}`;
+    else if (newRole === 'admin' && category) msg = `You have been made Admin — ${category.replace(' Co-ordinator','').replace(' Coordinator','')}`;
+    else if (newRole === 'shift') msg = `You have been moved to ${category}.`;
     else if (newRole === 'user') msg = 'Your admin role has been updated.';
-    else if (newRole === 'sb') msg = 'You have been moved to Senior Batch.';
     if (msg) await sendInAppNotification(userId, '👑 Role Update', msg);
 };
 
@@ -2219,7 +2248,7 @@ let _perfAllData  = [];   // full sorted array for current filter
 let _perfYear     = null;
 let _perfMonth    = null; // 0-indexed
 let _perfWeekIdx  = 0;    // index into weeks of selected month
-let _activeFilter = '';   // '', 'SB', 'IGF', 'ICF'
+let _activeFilter = '';   // '', 'SB', 'IGF', 'IYF', 'ICF'
 
 // ── Init year/month dropdowns ─────────────────────────────
 function initPerfDropdowns() {
@@ -2407,7 +2436,8 @@ function renderPerformersFromCache() {
         data = data.filter(u => {
             const lvl = u.level;
             if (_activeFilter === 'SB')  return lvl === 'Senior Batch';
-            if (_activeFilter === 'IGF') return lvl === 'IGF & IYF Coordinator';
+            if (_activeFilter === 'IGF') return lvl === 'IGF Co-ordinator';
+            if (_activeFilter === 'IYF') return lvl === 'IYF Co-ordinator';
             if (_activeFilter === 'ICF') return lvl === 'ICF Coordinator';
             return true;
         });
@@ -2675,7 +2705,7 @@ window.loadLeaderboard = async (force) => {
         // Determine level(s) to show based on role
         let levelFilter;
         if (isSuperAdmin()) {
-            levelFilter = _lbCategoryFilter ? [_lbCategoryFilter] : ['Senior Batch','IGF & IYF Coordinator','ICF Coordinator'];
+            levelFilter = _lbCategoryFilter ? [_lbCategoryFilter] : ['Senior Batch','IGF Co-ordinator','IYF Co-ordinator','ICF Coordinator'];
         } else if (isCategoryAdmin()) {
             levelFilter = [userProfile.adminCategory];
         } else {
@@ -2698,7 +2728,7 @@ window.loadLeaderboard = async (force) => {
                 if (!d.sleepTime || d.sleepTime === 'NR') return;
                 rows.push({
                     uid: uDoc.id, name: u.name || '—', photo: u.photoURL || null,
-                    level:    (u.level || '').replace(' Coordinator','').replace('Senior Batch','SB'),
+                    level:    (u.level || '').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB'),
                     score:    d.totalScore ?? 0,
                     pct:      d.dayPercent ?? 0,
                     days:     null,
@@ -2729,7 +2759,7 @@ window.loadLeaderboard = async (force) => {
                 const avgPct     = Math.round(validDocs.reduce((sum, d) => sum + (d.data().dayPercent ?? 0), 0) / validDocs.length);
                 rows.push({
                     uid: uDoc.id, name: u.name || '—', photo: u.photoURL || null,
-                    level:    (u.level || '').replace(' Coordinator','').replace('Senior Batch','SB'),
+                    level:    (u.level || '').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB'),
                     score:    totalScore,
                     pct:      avgPct,
                     days:     validDocs.length,
@@ -2755,7 +2785,8 @@ window.loadLeaderboard = async (force) => {
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
             <button class="sa-lvl-btn lb-filter-btn${!_lbCategoryFilter?' active':''}" onclick="setLbFilter('',this)">All</button>
             <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='Senior Batch'?' active':''}" onclick="setLbFilter('Senior Batch',this)">Senior Batch</button>
-            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='IGF & IYF Coordinator'?' active':''}" onclick="setLbFilter('IGF &amp; IYF Coordinator',this)">IGF &amp; IYF</button>
+            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='IGF Co-ordinator'?' active':''}" onclick="setLbFilter('IGF Co-ordinator',this)">IGF</button>
+            <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='IYF Co-ordinator'?' active':''}" onclick="setLbFilter('IYF Co-ordinator',this)">IYF</button>
             <button class="sa-lvl-btn lb-filter-btn${_lbCategoryFilter==='ICF Coordinator'?' active':''}" onclick="setLbFilter('ICF Coordinator',this)">ICF</button>
         </div>` : '';
 

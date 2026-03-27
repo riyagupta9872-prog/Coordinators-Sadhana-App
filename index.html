@@ -1353,7 +1353,8 @@
             <label class="form-label">Position Level</label>
             <select id="profile-level" required>
                 <option value="" disabled selected>Select your position</option>
-                <option value="IGF & IYF Coordinator">IGF &amp; IYF Coordinator</option>
+                <option value="IGF Co-ordinator">IGF Co-ordinator</option>
+                <option value="IYF Co-ordinator">IYF Co-ordinator</option>
                 <option value="ICF Coordinator">ICF Coordinator</option>
             </select>
 
@@ -1395,13 +1396,7 @@
             <button class="header-icon-btn" onclick="scrollToTasks()" title="Tasks" id="header-tasks-btn">
                 📢<span class="header-badge hidden" id="header-tasks-badge">0</span>
             </button>
-            <button class="header-icon-btn header-logout-btn" id="logout-btn" title="Logout">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/>
-                    <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-            </button>
+            <button class="header-icon-btn header-logout-btn" id="logout-btn" title="Logout" style="font-size:12px;font-weight:700;width:auto;padding:0 10px;">Logout</button>
         </div>
         <!-- Hidden: admin menu btn kept for JS reference -->
         <button id="admin-menu-btn" class="hidden" style="display:none!important;"></button>
@@ -1677,7 +1672,8 @@
                     <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
                         <button class="sa-lvl-btn active" onclick="saLvlFilter('reports','',this)">All</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','SB',this)">Senior Batch</button>
-                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IGF',this)">IGF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('reports','IYF',this)">IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('reports','ICF',this)">ICF</button>
                     </div>
                     <!-- Best & Weak Performers for Super Admin -->
@@ -1716,7 +1712,8 @@
                     <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
                         <button class="sa-lvl-btn active" onclick="saLvlFilter('usermgmt','',this)">All</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','SB',this)">Senior Batch</button>
-                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','IGF',this)">IGF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','IYF',this)">IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('usermgmt','ICF',this)">ICF</button>
                     </div>
                     <div class="card">
@@ -1724,9 +1721,10 @@
                             <input type="text" id="admin-search-input" placeholder="Search devotee by name..." oninput="filterAdminUsers()" style="margin:0;flex:1;">
                             <select id="admin-category-filter" onchange="filterAdminUsers()" style="margin:0;width:auto;flex-shrink:0;padding:10px 12px;font-size:13px;">
                                 <option value="">All Categories</option>
-                                <option value="Senior Batch">Senior Batch</option>
-                                <option value="IGF &amp; IYF Coordinator">IGF &amp; IYF</option>
-                                <option value="ICF Coordinator">ICF</option>
+                                <option value="SB">Senior Batch</option>
+                                <option value="IGF">IGF</option>
+                                <option value="IYF">IYF</option>
+                                <option value="ICF">ICF</option>
                             </select>
                         </div>
                         <div id="admin-users-list"></div>
@@ -1739,7 +1737,8 @@
                     <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
                         <button class="sa-lvl-btn active" onclick="saLvlFilter('inactive','',this)">All</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','Senior Batch',this)">Senior Batch</button>
-                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','IGF',this)">IGF &amp; IYF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','IGF',this)">IGF</button>
+                        <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','IYF',this)">IYF</button>
                         <button class="sa-lvl-btn" onclick="saLvlFilter('inactive','ICF',this)">ICF</button>
                     </div>
                     <div id="admin-inactive-container"></div>
@@ -1775,7 +1774,8 @@
                         <select id="task-category-sel" style="margin-bottom:10px;">
                             <option value="all">📢 All Categories</option>
                             <option value="Senior Batch">Senior Batch only</option>
-                            <option value="IGF & IYF Coordinator">IGF &amp; IYF only</option>
+                            <option value="IGF Co-ordinator">IGF only</option>
+                            <option value="IYF Co-ordinator">IYF only</option>
                             <option value="ICF Coordinator">ICF only</option>
                         </select>
                         <button onclick="postTask()" class="btn-primary" style="width:auto;padding:9px 24px;">Post Task</button>
@@ -2272,5 +2272,77 @@ window.togglePwd = (inputId, btn) => {
         <div class="success-msg" id="ss-msg"></div>
     </div>
 </div>
+<!-- ── PWA INSTALL BANNER ── -->
+<style>
+#pwa-install-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1A3C5E;color:#fff;padding:10px 14px;box-shadow:0 -2px 12px rgba(0,0,0,.25)}
+#pwa-install-banner .pwa-row{display:flex;align-items:center;gap:10px;max-width:600px;margin:0 auto}
+#pwa-install-banner .pwa-icon{width:36px;height:36px;border-radius:8px;flex-shrink:0}
+#pwa-install-banner .pwa-text{flex:1;min-width:0;line-height:1.3}
+#pwa-install-banner .pwa-title{font-size:13px;font-weight:700}
+#pwa-install-banner .pwa-sub{font-size:10px;opacity:.75}
+#pwa-install-banner button{width:auto!important;margin:0!important;flex-shrink:0}
+#pwa-install-banner .pwa-btn{background:#e74c3c;color:#fff;border:none;padding:7px 16px;border-radius:18px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+#pwa-install-banner .pwa-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;opacity:.7;line-height:1}
+</style>
+<div id="pwa-install-banner">
+    <div class="pwa-row">
+        <img class="pwa-icon" src="icon-192.png" alt="">
+        <div class="pwa-text">
+            <div class="pwa-title">Install Sadhana Tracker</div>
+            <div class="pwa-sub">Add to home screen for quick access</div>
+        </div>
+        <button class="pwa-btn" id="pwa-install-btn">Install</button>
+        <button class="pwa-close" id="pwa-install-close">&times;</button>
+    </div>
+</div>
+<script>
+(function() {
+    let _deferredPrompt = null;
+    const banner = document.getElementById('pwa-install-banner');
+    const installBtn = document.getElementById('pwa-install-btn');
+    const closeBtn = document.getElementById('pwa-install-close');
+
+    // Don't show if already installed (standalone mode)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+    // Dismiss expires after 7 days
+    function isDismissed() {
+        const ts = localStorage.getItem('pwa-install-dismissed');
+        if (!ts) return false;
+        return (Date.now() - Number(ts)) < 7 * 24 * 60 * 60 * 1000;
+    }
+
+    function showBanner() {
+        if (!isStandalone && !isDismissed()) banner.style.display = 'block';
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        _deferredPrompt = e;
+        showBanner();
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (!_deferredPrompt) return;
+        _deferredPrompt.prompt();
+        const result = await _deferredPrompt.userChoice;
+        if (result.outcome === 'accepted') {
+            banner.style.display = 'none';
+        }
+        _deferredPrompt = null;
+    });
+
+    closeBtn.addEventListener('click', () => {
+        banner.style.display = 'none';
+        localStorage.setItem('pwa-install-dismissed', String(Date.now()));
+    });
+
+    // Hide banner if app gets installed
+    window.addEventListener('appinstalled', () => {
+        banner.style.display = 'none';
+        _deferredPrompt = null;
+    });
+})();
+</script>
 </body>
 </html>
