@@ -1,4 +1,4 @@
-// Sadhana Tracker — Service Worker
+// Sadhna Tracker — Service Worker
 // Handles: offline caching + push notifications
 
 const CACHE_NAME = 'sadhana-tracker-v1';
@@ -56,7 +56,7 @@ self.addEventListener('fetch', e => {
 
 // ── PUSH NOTIFICATIONS ───────────────────────────────────
 self.addEventListener('push', e => {
-  let data = { title: 'Sadhana Tracker', body: 'You have a new notification.' };
+  let data = { title: 'Sadhna Tracker', body: 'You have a new notification.' };
   try { data = e.data.json(); } catch {}
 
   const options = {
@@ -99,8 +99,8 @@ self.addEventListener('sync', e => {
 
 async function checkAndNotify() {
   const msg = {
-    title: '🙏 Sadhana Reminder',
-    body: "You haven't filled your Sadhana today. Please submit now.",
+    title: '🙏 Sadhna Reminder',
+    body: "You haven't filled your Sadhna today. Please submit now.",
     url: '/Coordinators-Sadhana-Tracker/index.html'
   };
   await self.registration.showNotification(msg.title, {

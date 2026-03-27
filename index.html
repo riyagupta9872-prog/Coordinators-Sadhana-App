@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Sadhana Tracker</title>
+    <title>Sadhna Tracker</title>
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1A3C5E">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Sadhana">
+    <meta name="apple-mobile-web-app-title" content="Sadhna">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
@@ -18,74 +18,124 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --primary: #2c3e50; --secondary: #3498db; --success: #27ae60;
-            --danger: #e74c3c; --warning: #f39c12; --light: #f4f7f6;
-            --white: #ffffff; --border: #e5e7eb; --muted: #6b7280;
+            --primary:     #1e3a5f;
+            --primary-mid: #2563ab;
+            --accent:      #3b82f6;
+            --accent-light:#dbeafe;
+            --secondary:   #3b82f6;
+            --success:     #059669;
+            --danger:      #dc2626;
+            --warning:     #d97706;
+            --surface:     #ffffff;
+            --bg:          #f0f4f9;
+            --border:      #e2e8f0;
+            --text:        #1e293b;
+            --text-2:      #475569;
+            --text-3:      #94a3b8;
+            --light:       #f0f4f9;
+            --white:       #ffffff;
+            --muted:       #64748b;
+            --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
+            --shadow-sm: 0 1px 4px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.07);
+            --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
         }
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--light); margin: 0; padding: 0; }
-        .container { max-width: 1000px; margin: 0 auto; padding: 16px; }
+        *, *::before, *::after { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(160deg, #eef2f9 0%, #f0f4f9 100%);
+            min-height: 100vh; margin: 0; padding: 0;
+            color: var(--text); -webkit-font-smoothing: antialiased;
+        }
+        .container { max-width: 720px; margin: 0 auto; padding: 12px 14px 40px; }
+        @media (min-width: 768px) { .container { max-width: 900px; padding: 16px 28px 40px; } }
+        @media (min-width: 1024px) { .container { max-width: 1100px; padding: 20px 40px 40px; } }
         .hidden { display: none !important; }
-        .card { background: var(--white); padding: 22px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 18px; }
+        .card {
+            background: var(--surface); padding: 20px 22px;
+            border-radius: var(--r-lg);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
+        }
 
         /* Inputs */
-        input, select { width: 100%; padding: 11px 13px; margin: 5px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
-        input:focus, select:focus { outline: none; border-color: var(--secondary); box-shadow: 0 0 0 3px rgba(52,152,219,0.1); }
-        .form-label { font-weight: 600; font-size: 13px; color: #444; margin: 10px 0 2px; display: block; }
+        input, select {
+            width: 100%; padding: 12px 14px; margin: 4px 0;
+            border: 1.5px solid var(--border); border-radius: var(--r-md);
+            font-size: 14px; font-family: inherit;
+            background: #fafcff; color: var(--text);
+            transition: border-color 0.18s, box-shadow 0.18s;
+            -webkit-appearance: none; appearance: none;
+        }
+        input:focus, select:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+            background: white;
+        }
+        .form-label {
+            font-weight: 600; font-size: 12.5px; color: var(--text-2);
+            margin: 14px 0 3px; display: block; letter-spacing: 0.02em;
+        }
 
         /* Buttons */
-        button { width: 100%; padding: 11px; margin: 5px 0; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.18s; }
-        button:hover:not(:disabled) { opacity: 0.87; transform: translateY(-1px); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .btn-primary { background: var(--secondary); color: white; }
+        button {
+            width: 100%; padding: 12px; margin: 4px 0;
+            border: none; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; font-family: inherit;
+            cursor: pointer; transition: all 0.18s; letter-spacing: 0.01em;
+        }
+        button:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+        button:active:not(:disabled) { transform: translateY(0); }
+        button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
-        .btn-danger  { background: var(--danger); color: white; }
-        .btn-gray    { background: #95a5a6; color: white; }
-        .btn-warning { background: #f39c12; color: white; }
+        .btn-danger  { background: var(--danger);  color: white; }
+        .btn-gray    { background: #e2e8f0; color: var(--text-2); }
+        .btn-warning { background: var(--warning); color: white; }
         .btn-purple  { background: #7c3aed; color: white; }
         .btn-teal    { background: #0d9488; color: white; }
         .btn-sm      { width: auto !important; padding: 6px 14px !important; font-size: 12px !important; margin: 2px !important; }
         .btn-admin-header { width: auto; padding: 6px 14px; font-size: 12px; font-weight: 700; margin: 2px;
-            background: #1A3C5E; color: white; border-radius: 8px; white-space: nowrap; border: none; cursor: pointer; }
+            background: var(--primary); color: white; border-radius: var(--r-sm); white-space: nowrap; border: none; cursor: pointer; }
         .btn-admin-header:hover { opacity: 0.88; transform: none; }
         .btn-notif-bell { width: auto; padding: 6px 10px; font-size: 16px; margin: 2px;
-            background: transparent; color: #1A3C5E; border-radius: 8px; border: 1.5px solid #1A3C5E; cursor: pointer; position: relative; }
-        .btn-notif-bell:hover { background: #f0f4f8; transform: none; }
-        .btn-notif-bell.granted { color: #16a34a; border-color: #16a34a; }
+            background: transparent; color: var(--primary); border-radius: var(--r-sm); border: 1.5px solid var(--primary); cursor: pointer; }
+        .btn-notif-bell:hover { background: #f0f4f9; transform: none; }
+        .btn-notif-bell.granted { color: var(--success); border-color: var(--success); }
 
-        /* ── NEW HEADER ── */
+        /* ── HEADER ── */
         .app-header {
             display: flex; align-items: center; gap: 10px;
-            margin-bottom: 0; padding: 10px 14px;
-            background: white; border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            position: relative;
+            padding: 12px 16px; margin-bottom: 12px;
+            background: white; border-radius: var(--r-lg);
+            box-shadow: var(--shadow-md); border: 1px solid var(--border);
         }
         .header-name { font-weight: 700; font-size: 15px; color: var(--primary); }
-        .header-role { font-size: 12px; color: var(--muted); margin-top: 1px; }
+        .header-role { font-size: 11px; color: var(--text-3); margin-top: 1px; }
         .header-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 
-        /* ── HAMBURGER (top-left user menu) ── */
+        /* ── HAMBURGER ── */
         .user-menu-btn {
             width: 38px; height: 38px; min-width: 38px;
-            background: #f0f4f8; border: none; border-radius: 9px;
+            background: #f0f4f9; border: none; border-radius: var(--r-sm);
             font-size: 18px; cursor: pointer; display: flex;
             align-items: center; justify-content: center;
             margin: 0; padding: 0; flex-shrink: 0;
-            color: #1A3C5E; transition: background 0.2s;
+            color: var(--primary); transition: background 0.2s;
         }
-        .user-menu-btn:hover { background: #dde4ed; transform: none; }
+        .user-menu-btn:hover { background: #e2eaf4; transform: none; }
 
-        /* ── ADMIN BTN top-left corner ── */
+        /* ── ADMIN BTN ── */
         .admin-corner-btn {
             width: 38px; height: 38px; min-width: 38px;
-            background: #1A3C5E; border: none; border-radius: 9px;
+            background: var(--primary); border: none; border-radius: var(--r-sm);
             font-size: 16px; cursor: pointer; display: flex;
             align-items: center; justify-content: center;
             margin: 0; padding: 0; flex-shrink: 0;
             color: white; transition: background 0.2s;
         }
-        .admin-corner-btn:hover { background: #2563a0; transform: none; }
+        .admin-corner-btn:hover { background: var(--primary-mid); transform: none; }
 
         /* ── USER SIDEBAR (left) ── */
         .user-sidebar {
@@ -193,11 +243,27 @@
         .score-pos { color: #16a34a; font-weight: 700; }
         .score-neg { color: #dc2626; font-weight: 700; }
 
-        /* Nav tabs */
-        .nav-tabs { display: flex; gap: 7px; margin-bottom: 18px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+        /* ── NAV TABS ── */
+        .nav-tabs {
+            display: flex; gap: 4px; margin-bottom: 16px;
+            overflow-x: auto; flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch; scrollbar-width: none;
+            padding: 5px 5px 5px;
+            background: rgba(30,58,95,0.06);
+            border-radius: var(--r-xl);
+        }
         .nav-tabs::-webkit-scrollbar { display: none; }
-        .tab-btn { background: #e9ecef; color: #555; padding: 8px 16px; border-radius: 20px; width: auto; font-size: 13px; margin: 0; white-space: nowrap; flex-shrink: 0; }
-        .tab-btn.active { background: var(--secondary); color: white; }
+        .tab-btn {
+            background: transparent; color: var(--text-3);
+            padding: 8px 16px; border-radius: var(--r-xl);
+            width: auto; font-size: 13px; margin: 0;
+            white-space: nowrap; flex-shrink: 0;
+            font-weight: 600; transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: white; color: var(--primary);
+            box-shadow: 0 2px 8px rgba(30,58,95,0.12);
+        }
 
         /* Tab panels */
         .tab-panel { display: none; }
@@ -219,14 +285,28 @@
             position: sticky; left: 0; z-index: 2; background: white; }
         .data-table th:first-child { position: sticky; left: 0; top: 0; z-index: 4; background: #f8f9fa; }
 
-        /* Modals */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.72); display: flex; justify-content: center; align-items: center; z-index: 999; padding: 16px; }
-        .modal-box { background: white; width: 100%; max-width: 900px; padding: 24px; border-radius: 14px; max-height: 92vh; overflow-y: auto; position: relative; }
-        .modal-box.sm  { max-width: 420px; }
-        .modal-box.md  { max-width: 540px; }
-        .modal-close { position: absolute; right: 16px; top: 12px; font-size: 24px; cursor: pointer; color: #aaa; background: none; border: none; width: auto; padding: 4px 8px; margin: 0; line-height: 1; }
-        .modal-close:hover { color: #333; transform: none; }
-        .modal-title { font-size: 17px; font-weight: 700; color: var(--primary); margin: 0 0 18px; padding-right: 30px; }
+        /* ── MODALS ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.72);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999; padding: 16px; backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            background: white; width: 100%; max-width: 900px; padding: 24px;
+            border-radius: var(--r-xl); max-height: 92vh; overflow-y: auto;
+            position: relative; box-shadow: var(--shadow-lg);
+        }
+        .modal-box.sm { max-width: 420px; }
+        .modal-box.md { max-width: 540px; }
+        .modal-close {
+            position: absolute; right: 14px; top: 14px; font-size: 16px;
+            cursor: pointer; color: var(--text-3); background: #f0f4f9;
+            border: none; width: 30px; height: 30px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0; margin: 0; line-height: 1; transition: all 0.15s;
+        }
+        .modal-close:hover { color: var(--primary); background: #e2e8f0; transform: none; }
+        .modal-title { font-size: 17px; font-weight: 700; color: var(--primary); margin: 0 0 18px; padding-right: 38px; }
 
         /* Admin user cards */
         .user-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; background: white; }
@@ -241,10 +321,18 @@
         .banner-purple { background: #f3e8ff; color: #6d28d9; }
         .banner-blue   { background: #eff6ff; color: #1d4ed8; }
 
-        /* Chart */
-        .chart-tabs { display: flex; gap: 7px; margin-bottom: 16px; flex-wrap: wrap; }
-        .chart-tab-btn { background: #e9ecef; color: #555; padding: 7px 16px; border-radius: 20px; width: auto; font-size: 13px; margin: 0; }
-        .chart-tab-btn.active { background: var(--secondary); color: white; }
+        /* ── CHART TABS ── */
+        .chart-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+        .chart-tab-btn {
+            background: #f0f4f9; color: var(--text-2);
+            padding: 7px 18px; border-radius: var(--r-xl);
+            width: auto; font-size: 13px; margin: 0; font-weight: 500;
+            transition: all 0.18s;
+        }
+        .chart-tab-btn.active {
+            background: var(--primary); color: white;
+            box-shadow: 0 2px 8px rgba(30,58,95,0.2);
+        }
         .chart-container { position: relative; height: 260px; }
 
         /* Password modal */
@@ -809,12 +897,13 @@
         .uac-hname { font-size:17px; font-weight:800; color:#1a252f; }
         .uac-hsub  { font-size:12px; color:#888; margin-top:2px; }
         .uac-x { background:none; border:none; font-size:22px; color:#aaa; cursor:pointer; width:auto; padding:0; }
-        .uac-body { padding:10px 14px 28px; }
+        .uac-body { padding:10px 14px 28px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .uac-body .uac-fullwidth { grid-column: 1 / -1; }
         .uac-btn {
-            display:flex; align-items:center; gap:13px; width:100%;
-            padding:12px 12px; border:none; border-radius:12px; background:white;
-            font-size:15px; font-weight:600; color:#1a252f; cursor:pointer;
-            margin-bottom:4px; text-align:left;
+            display:flex; flex-direction:column; align-items:center; gap:8px;
+            padding:14px 8px; border:none; border-radius:12px; background:#f8fafc;
+            font-size:13px; font-weight:600; color:#1a252f; cursor:pointer;
+            text-align:center; border:1px solid var(--border);
         }
         .uac-btn:active { background:#f4f7f6; }
         .uac-ico { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
@@ -857,22 +946,33 @@
         .av-lg .av-init { font-size:22px; }
 
         /* ── LEADERBOARD ── */
-        .lb-row { display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:7px;background:#f8fafc;border:1px solid #f0f0f0; }
-        .lb-row.lb-self { background:#eff6ff;border-color:#bfdbfe; }
-        .lb-rank { font-size:18px;width:28px;text-align:center;flex-shrink:0; }
-        .lb-name { flex:1;font-weight:600;font-size:13px;color:#1a252f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-        .lb-score-wrap { text-align:right;flex-shrink:0; }
-        .lb-score { font-weight:800;font-size:15px; }
-        .lb-pct { font-size:11px;color:#6b7280; }
+        .lb-row {
+            display:flex; align-items:center; gap:10px;
+            padding:12px 14px; border-radius:var(--r-md);
+            margin-bottom:8px; background:#f8fafd;
+            border:1px solid var(--border); transition:background 0.1s;
+        }
+        .lb-row:hover { background:#f0f6ff; }
+        .lb-row.lb-self { background:#eff6ff; border-color:#bfdbfe; box-shadow:0 0 0 1px #bfdbfe; }
+        .lb-rank { font-size:18px; width:28px; text-align:center; flex-shrink:0; }
+        .lb-name { flex:1; font-weight:600; font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .lb-score-wrap { text-align:right; flex-shrink:0; }
+        .lb-score { font-weight:800; font-size:15px; }
+        .lb-pct { font-size:11px; color:var(--text-3); }
 
         /* ── TASKS ── */
-        .task-card { background:white;border-radius:10px;border:1px solid #e5e7eb;padding:14px 16px;margin-bottom:10px; }
-        .task-title { font-weight:700;font-size:14px;color:#1A3C5E;margin-bottom:5px; }
-        .task-body { font-size:13px;color:#374151;margin-bottom:8px;white-space:pre-wrap;line-height:1.5; }
-        .task-meta { font-size:11px;color:#9ca3af; }
-        .task-cat-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;margin-right:6px; }
-        .task-link { display:inline-block;margin-top:6px;color:#3498db;font-size:12px;word-break:break-all; }
-        .task-del-btn { float:right;background:none;border:none;color:#dc2626;font-size:18px;cursor:pointer;width:auto;padding:0;margin:0;line-height:1; }
+        .task-card {
+            background:white; border-radius:var(--r-md);
+            border:1px solid var(--border); padding:16px;
+            margin-bottom:10px; box-shadow:var(--shadow-sm);
+            border-left:3px solid var(--accent);
+        }
+        .task-title { font-weight:700; font-size:14px; color:var(--primary); margin-bottom:5px; }
+        .task-body { font-size:13px; color:var(--text-2); margin-bottom:8px; white-space:pre-wrap; line-height:1.55; }
+        .task-meta { font-size:11px; color:var(--text-3); }
+        .task-cat-badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; background:#eff6ff; color:#1d4ed8; margin-right:6px; }
+        .task-link { display:inline-block; margin-top:6px; color:var(--accent); font-size:12px; word-break:break-all; }
+        .task-del-btn { float:right; background:none; border:none; color:var(--danger); font-size:18px; cursor:pointer; width:auto; padding:0; margin:0; line-height:1; }
 
         /* ── ACTIVITY ANALYSIS ── */
         .aa-donut-wrap { position:relative;width:130px;height:130px;flex-shrink:0; }
@@ -881,7 +981,329 @@
         .aa-donut-sub { font-size:10px;color:#9ca3af;margin-top:2px; }
         .aa-bar-wrap { position:relative;height:220px; }
         .aa-summary-item { font-size:12px;color:#374151;margin-bottom:6px; }
-        .aa-summary-item strong { color:#1A3C5E; }
+        .aa-summary-item strong { color:var(--primary); }
+
+        /* ── AUTH SCREEN ── */
+        #auth-section { max-width:400px; margin:28px auto 0; padding:0; border:none; overflow:hidden; box-shadow:0 8px 40px rgba(30,58,95,0.13); }
+        .auth-hero {
+            background:linear-gradient(160deg, #1e3a5f 0%, #2563ab 60%, #3b82f6 100%);
+            padding:36px 28px 32px; text-align:center; color:white;
+        }
+        .auth-logo { font-size:40px; margin-bottom:12px; display:block; }
+        .auth-title { font-size:22px; font-weight:800; margin:0 0 6px; letter-spacing:0.3px; }
+        .auth-sub { font-size:12.5px; opacity:0.78; font-style:italic; letter-spacing:0.3px; margin:0; }
+        .auth-body { padding:28px 26px 30px; }
+
+        /* ── SADHANA FORM GROUPS ── */
+        .form-section {
+            background:#f8fafd; border-radius:var(--r-md);
+            border:1px solid var(--border); padding:16px; margin-bottom:14px;
+        }
+        .form-section-title {
+            font-size:11px; font-weight:700; color:var(--text-3);
+            text-transform:uppercase; letter-spacing:0.7px;
+            margin:0 0 12px; display:flex; align-items:center; gap:6px;
+        }
+        .field-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .field-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+        .field-group { margin-bottom:0; }
+        .field-group .form-label { margin-top:0; font-size:11.5px; }
+
+        /* ── UAC SHEET ── */
+        .uac-sheet { box-shadow:0 -8px 40px rgba(0,0,0,0.14); }
+        .uac-hname { color:var(--primary); }
+        .uac-btn:hover { background:#f0f5ff; }
+
+        /* ── USER LIST ── */
+        .user-list-item:hover { background:#f8fafd; }
+        .user-list-chevron { font-size:16px; color:#d1d5db; }
+
+        /* ── WEEK CARDS ── */
+        .week-card { border-radius:var(--r-md); border-color:var(--accent); border:1px solid var(--border); border-left:4px solid var(--accent); }
+        .week-header { background:white; }
+        .week-header:hover { background:#f8fafd; }
+
+        /* ── EDIT SCORE PREVIEW ── */
+        .edit-score-preview { background:#f0fdf4; border:1px solid #bbf7d0; color:var(--success); border-radius:var(--r-md); }
+
+        /* ── ADMIN DRAWER ── */
+        .admin-drawer { background:linear-gradient(180deg, #1e3a5f 0%, #162d4a 100%); }
+
+        /* ── GITA BANNER ── */
+        .gita-shloka { font-size:14px; color:#1a1833; }
+        .gita-translation { font-size:12.5px; }
+
+        /* ── SECTION HEADING STYLE ── */
+        .section-title {
+            font-size:15px; font-weight:700; color:var(--primary);
+            margin:0 0 14px; display:flex; align-items:center; gap:7px;
+        }
+        .section-title span { opacity:0.6; font-size:13px; font-weight:500; }
+
+        /* ── SCORE TAG ── */
+        .score-tag {
+            display:inline-flex; align-items:center; gap:4px;
+            background:var(--accent-light); color:var(--primary);
+            border-radius:var(--r-xl); padding:4px 12px;
+            font-size:12px; font-weight:700;
+        }
+
+        /* ── HEADER ICON BUTTONS ── */
+        .header-icon-btn {
+            width: 36px; height: 36px; min-width: 36px; border: none;
+            border-radius: var(--r-sm); background: #f0f4f9;
+            font-size: 16px; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            position: relative; flex-shrink: 0; padding: 0;
+            color: var(--text-2); transition: background 0.2s;
+        }
+        .header-icon-btn:active { transform: scale(0.95); }
+        .header-logout-btn { background: transparent; color: var(--danger); }
+        .header-badge {
+            position: absolute; top: -3px; right: -3px;
+            background: var(--danger); color: white; font-size: 9px;
+            padding: 1px 5px; border-radius: 99px; font-weight: 700; line-height: 1.3;
+        }
+        /* ── TASK DONE BTN ── */
+        .task-done-btn {
+            padding: 6px 14px; font-size: 12px; font-weight: 700;
+            border-radius: var(--r-md); border: 1.5px solid var(--success);
+            background: white; color: var(--success); cursor: pointer;
+            transition: all 0.2s;
+        }
+        .task-done-btn:active { transform: scale(0.95); }
+        .task-done-btn.completed {
+            background: #dcfce7; color: var(--success);
+            border-color: #bbf7d0; cursor: default;
+        }
+        .task-completion-count {
+            font-size: 11px; color: var(--text-3); margin-top: 4px;
+        }
+        .task-status-section { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+        .task-status-toggle {
+            font-size: 12px; font-weight: 600; color: var(--accent); cursor: pointer;
+            background: none; border: none; padding: 0; display: flex; align-items: center; gap: 4px;
+        }
+        .task-status-detail { margin-top: 8px; display: none; }
+        .task-status-detail.open { display: block; }
+        .task-user-row {
+            display: flex; align-items: center; gap: 6px; padding: 4px 0;
+            font-size: 12px; color: var(--text);
+        }
+        .task-user-row .tud { color: var(--success); font-weight: 600; }
+        .task-user-row .tup { color: var(--text-3); }
+        .task-remind-btn {
+            padding: 5px 12px; font-size: 11px; font-weight: 700;
+            border-radius: var(--r-md); border: 1.5px solid var(--warning);
+            background: #fffbeb; color: var(--warning); cursor: pointer;
+            margin-top: 6px; width: auto;
+        }
+        .task-remind-btn:active { transform: scale(0.95); }
+
+        /* Subtle SA nav tabs */
+        #sa-nav-tabs .tab-btn.sa-tab { font-size:12px; padding:7px 13px; }
+
+        /* ── BOTTOM NAV ── */
+        .bottom-nav {
+            display: none; position: fixed; bottom: 0; left: 0; right: 0;
+            height: 60px;
+            background: #ffffff; border-top: 1px solid var(--border);
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.07); z-index: 200;
+            justify-content: space-around; align-items: stretch;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .bottom-nav.visible { display: flex; }
+        .bnav-item {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 2px; flex: 1; padding: 6px 2px; cursor: pointer; border: none; background: none;
+            color: var(--text-3); transition: color 0.2s; font-size: 10px; font-weight: 600;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .bnav-icon { font-size: 20px; line-height: 1; transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1); display: block; }
+        .bnav-item.active { color: var(--accent); }
+        .bnav-item.active .bnav-icon { transform: translateY(-2px) scale(1.12); }
+        .bnav-item:active .bnav-icon { transform: scale(0.85); }
+        body.has-bottom-nav .container { padding-bottom: 80px; }
+        body.has-bottom-nav #user-nav-tabs,
+        body.has-bottom-nav #sa-nav-tabs { display: none !important; }
+
+        /* ── TAB PANEL ANIMATION ── */
+        @keyframes panelIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .tab-panel.active { animation: panelIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+
+        /* ── MODAL ANIMATION ── */
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.92) translateY(10px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-overlay:not(.hidden) .modal-box { animation: modalIn 0.22s cubic-bezier(0.34,1.56,0.64,1) both; }
+
+        /* ── SUBMIT SUCCESS OVERLAY ── */
+        #submit-success-overlay {
+            display: none; position: fixed; inset: 0; z-index: 1000;
+            background: rgba(30,58,95,0.6); backdrop-filter: blur(6px);
+            align-items: center; justify-content: center;
+        }
+        #submit-success-overlay.visible { display: flex; }
+        .submit-success-card {
+            background: white; border-radius: var(--r-xl); padding: 32px 28px;
+            text-align: center; max-width: 300px; width: 90%; box-shadow: var(--shadow-lg);
+            animation: successCardIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes successCardIn {
+            from { opacity: 0; transform: scale(0.82) translateY(24px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .success-icon { font-size: 50px; line-height: 1; margin-bottom: 10px; }
+        .success-score { font-size: 40px; font-weight: 800; color: var(--primary); line-height: 1; }
+        .success-label { font-size: 13px; color: var(--text-2); margin-top: 4px; margin-bottom: 14px; }
+        .success-bar-wrap { background: var(--accent-light); border-radius: 99px; height: 8px; margin: 0 0 10px; overflow: hidden; }
+        .success-bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--primary-mid)); transition: width 0.8s cubic-bezier(0.22,1,0.36,1); width: 0; }
+        #ss-pct { font-size: 24px; font-weight: 800; color: var(--accent); margin-bottom: 10px; }
+        .success-msg { font-size: 13px; color: var(--text-2); font-style: italic; }
+
+        /* ── LEADERBOARD ROW STAGGER ── */
+        @keyframes lbRowIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        .lb-row { animation: lbRowIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+        .lb-row:nth-child(1)  { animation-delay: 0.03s; }
+        .lb-row:nth-child(2)  { animation-delay: 0.06s; }
+        .lb-row:nth-child(3)  { animation-delay: 0.09s; }
+        .lb-row:nth-child(4)  { animation-delay: 0.12s; }
+        .lb-row:nth-child(5)  { animation-delay: 0.15s; }
+        .lb-row:nth-child(n+6){ animation-delay: 0.18s; }
+
+        /* ── SUB-TAB BAR ── */
+        .subtab-bar {
+            display: flex; gap: 0; background: var(--bg);
+            border-radius: var(--r-lg); padding: 4px;
+            margin-bottom: 14px; overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .subtab-btn {
+            flex: 1; min-width: max-content; padding: 9px 14px;
+            border: none; background: none; border-radius: var(--r-md);
+            font-size: 13px; font-weight: 600; color: var(--text-2);
+            cursor: pointer; transition: background 0.18s, color 0.18s;
+            white-space: nowrap;
+        }
+        .subtab-btn.active { background: white; color: var(--primary); box-shadow: var(--shadow-sm); }
+        .subtab-btn:active { transform: scale(0.97); }
+
+        /* ── SUB-PANEL ── */
+        .sub-panel { display: none; }
+        .sub-panel.active {
+            display: block;
+            animation: panelIn 0.24s cubic-bezier(0.22,1,0.36,1) both;
+        }
+
+        /* ── HOME PANEL ── */
+        .home-ring-card { padding: 18px; }
+        .home-ring-row { display: flex; align-items: center; gap: 16px; margin-top: 14px; }
+        .home-ring-wrap { position: relative; flex-shrink: 0; width: 120px; height: 120px; }
+        .home-ring-overlay {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; pointer-events: none;
+        }
+        .home-ring-pct { font-size: 24px; font-weight: 800; color: var(--primary); line-height: 1; }
+        .home-ring-stats { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .home-stat-row { display: flex; gap: 8px; }
+        .home-stat-chip {
+            flex: 1; background: var(--bg); border-radius: var(--r-md);
+            padding: 8px 10px; text-align: center;
+        }
+        .home-stat-chip .hsv { font-size: 18px; font-weight: 800; color: var(--primary); display: block; line-height: 1.1; }
+        .home-stat-chip .hsl { font-size: 10px; color: var(--text-3); font-weight: 500; }
+
+        /* ── STREAK DOTS ── */
+        .streak-dots-row {
+            display: flex; justify-content: space-evenly;
+            margin-top: 14px; padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .streak-day-wrap {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            animation: streakPop 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes streakPop {
+            from { opacity: 0; transform: scale(0.5) translateY(4px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .streak-dot {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: var(--border); border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; line-height: 1;
+        }
+        .streak-dot.filled { background: #dcfce7; border-color: var(--success); }
+        .streak-dot.filled::after { content: '✓'; color: var(--success); font-weight: 700; font-size: 12px; }
+        .streak-dot.today { border-color: var(--accent); border-width: 2px; }
+        .streak-dot.missed { background: #fff1f1; border-color: #fecaca; }
+        .streak-dot-label { font-size: 10px; color: var(--text-3); font-weight: 600; }
+
+        /* ── HOME FILL ALERT ── */
+        .home-fill-alert {
+            border-left: 4px solid var(--warning) !important;
+            background: #fffbeb !important;
+        }
+
+        /* ── ACTIVITY MINI BARS ── */
+        .act-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .act-bar-label { font-size: 11px; color: var(--text-2); font-weight: 600; width: 70px; flex-shrink: 0; text-align: right; }
+        .act-bar-track { flex: 1; background: var(--accent-light); border-radius: 99px; height: 8px; overflow: hidden; }
+        .act-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
+        .act-bar-val { font-size: 11px; color: var(--text-2); font-weight: 700; width: 36px; text-align: right; }
+
+        /* ── SUBMIT BUTTON PRESS ── */
+        .submit-btn { transition: transform 0.12s cubic-bezier(0.34,1.56,0.64,1) !important; }
+        .submit-btn:active { transform: scale(0.97) !important; }
+
+        /* ── LEADERBOARD TOP 3 PODIUM ── */
+        .lb-podium-wrap { position: relative; }
+        .lb-podium { display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin-bottom: 20px; padding-top: 10px; }
+        .lb-podium-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .lb-podium-item.rank1 { margin-bottom: 28px; }
+        .lb-podium-item.rank2 { margin-bottom: 8px; }
+        .lb-podium-item.rank3 { margin-bottom: 0; }
+        .lb-podium-avatar {
+            width: 48px; height: 48px; border-radius: 50%;
+            border: 3px solid var(--border); overflow: hidden;
+            background: var(--accent-light); display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; color: var(--primary);
+        }
+        .lb-podium-avatar.rank1 { width: 76px; height: 76px; border: 4px solid #fbbf24; font-size: 26px;
+            box-shadow: 0 0 20px rgba(251,191,36,0.35); }
+        .lb-podium-avatar.rank2 { width: 58px; height: 58px; border-color: #94a3b8; font-size: 20px; }
+        .lb-podium-avatar.rank3 { border-color: #cd7f32; }
+        .lb-podium-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .lb-podium-name { font-size: 11px; font-weight: 700; color: var(--primary); text-align: center; max-width: 80px; line-height: 1.2; }
+        .lb-podium-item.rank1 .lb-podium-name { font-size: 13px; font-weight: 800; }
+        .lb-podium-score { font-size: 10px; color: var(--text-2); }
+        .lb-podium-badge { font-size: 20px; }
+        .lb-podium-item.rank1 .lb-podium-badge { font-size: 26px; }
+        @keyframes podiumRise {
+            0%   { opacity: 0; transform: translateY(60px) scale(0.7); }
+            50%  { opacity: 1; }
+            75%  { transform: translateY(-10px) scale(1.06); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes confettiBurst {
+            0%   { opacity: 0; transform: scale(0) rotate(-10deg); }
+            30%  { opacity: 1; transform: scale(1.4) rotate(5deg); }
+            60%  { opacity: 1; transform: scale(1.1) rotate(-3deg); }
+            100% { opacity: 0; transform: scale(2.2) rotate(8deg); }
+        }
+        .lb-podium-item.reveal { animation: podiumRise 0.9s cubic-bezier(0.34,1.56,0.64,1) both; }
+        .lb-confetti {
+            position: absolute; top: 35%; left: 50%; transform: translate(-50%,-50%);
+            font-size: 64px; pointer-events: none; z-index: 10;
+            animation: confettiBurst 1.4s 1.8s ease-out both;
+        }
     </style>
 </head>
 <body>
@@ -889,19 +1311,26 @@
 
     <!-- ══ AUTH ══ -->
     <section id="auth-section" class="card">
-        <h2 style="text-align:center;margin-bottom:4px;color:var(--primary);">🙏 Sadhana Tracker</h2>
-        <p style="text-align:center;margin-bottom:20px;font-size:12px;color:#9ca3af;font-style:italic;letter-spacing:0.4px;">Dedicated to Guru and Gauranga</p>
-        <form id="login-form">
-            <input type="email"    id="login-email"    placeholder="Email" required>
-            <div class="pwd-wrap"><input type="password" id="login-password" placeholder="Password" required><button type="button" class="pwd-eye" onclick="togglePwd('login-password',this)">👁️</button></div>
-            <button type="submit" class="btn-primary" style="margin-top:10px;">Login</button>
-        </form>
-        <p style="text-align:center;margin-top:12px;">
-            <a href="#" onclick="openForgotPassword(event)" style="color:var(--secondary);font-size:13px;text-decoration:none;">Forgot Password?</a>
-        </p>
-        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted);">
-            New here? <a href="signup.html" style="color:var(--secondary);font-weight:600;">Sign Up</a>
-        </p>
+        <div class="auth-hero">
+            <span class="auth-logo">🙏</span>
+            <h2 class="auth-title">Sadhna Tracker</h2>
+            <p class="auth-sub">Dedicated to Guru and Gauranga</p>
+        </div>
+        <div class="auth-body">
+            <form id="login-form">
+                <label class="form-label" style="margin-top:0;">Email</label>
+                <input type="email" id="login-email" placeholder="your@email.com" required>
+                <label class="form-label">Password</label>
+                <div class="pwd-wrap"><input type="password" id="login-password" placeholder="Enter password" required><button type="button" class="pwd-eye" onclick="togglePwd('login-password',this)">👁️</button></div>
+                <button type="submit" class="btn-primary" style="margin-top:18px;padding:13px;font-size:15px;border-radius:var(--r-md);">Login</button>
+            </form>
+            <p style="text-align:center;margin-top:14px;">
+                <a href="#" onclick="openForgotPassword(event)" style="color:var(--accent);font-size:13px;text-decoration:none;">Forgot Password?</a>
+            </p>
+            <p style="text-align:center;margin-top:12px;font-size:13px;color:var(--muted);">
+                New here? <a href="signup.html" style="color:var(--primary);font-weight:700;">Sign Up</a>
+            </p>
+        </div>
     </section>
 
     <!-- ══ PROFILE SETUP ══ -->
@@ -952,25 +1381,30 @@
 
         <!-- ── APP HEADER ── -->
         <div class="app-header" style="margin-bottom:12px;">
-            <!-- Left: user hamburger + admin btn -->
-            <div style="display:flex;gap:7px;align-items:center;">
-                <button class="user-menu-btn" onclick="openUserSidebar()" title="Menu">&#9776;</button>
-                <button id="admin-menu-btn" class="admin-corner-btn hidden" onclick="openAdminDrawer()" title="Admin Panel"><img src="admin-panel.png" style="width:22px;height:22px;object-fit:contain;" onerror="this.outerHTML='&#9881;'"></button>
+            <!-- Left: avatar (opens sidebar/profile) -->
+            <div class="av" id="header-av" style="flex-shrink:0;cursor:pointer;" onclick="openUserSidebar()">
+                <img id="header-av-img" src="" alt="" style="display:none;">
+                <span class="av-init" id="header-av-init"></span>
             </div>
-            <!-- Center: avatar + name + role -->
-            <div style="flex:1;padding:0 10px;display:flex;align-items:center;gap:9px;min-width:0;">
-                <div class="av" id="header-av" style="flex-shrink:0;">
-                    <img id="header-av-img" src="" alt="" style="display:none;">
-                    <span class="av-init" id="header-av-init"></span>
-                </div>
-                <div style="min-width:0;">
-                    <div class="header-name" id="user-display-name"></div>
-                    <div class="header-role" id="user-role-display"></div>
-                </div>
+            <!-- Center: name + role -->
+            <div style="flex:1;padding:0 6px;min-width:0;">
+                <div class="header-name" id="user-display-name"></div>
+                <div class="header-role" id="user-role-display"></div>
             </div>
-            <!-- Right: logout only -->
-            <button id="logout-btn" class="btn-danger btn-sm">Logout</button>
+            <!-- Right: tasks bell + logout -->
+            <button class="header-icon-btn" onclick="scrollToTasks()" title="Tasks" id="header-tasks-btn">
+                📢<span class="header-badge hidden" id="header-tasks-badge">0</span>
+            </button>
+            <button class="header-icon-btn header-logout-btn" id="logout-btn" title="Logout">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+            </button>
         </div>
+        <!-- Hidden: admin menu btn kept for JS reference -->
+        <button id="admin-menu-btn" class="hidden" style="display:none!important;"></button>
 
         <!-- ── GITA BANNER ── -->
         <div class="gita-banner" style="margin-bottom:14px;justify-content:center;">
@@ -1003,144 +1437,234 @@
             <button class="tab-btn sa-tab"        onclick="saTab('tasks',this)">&#128203; Tasks</button>
         </div>
 
-        <!-- SADHANA ENTRY -->
-        <div id="sadhana-panel" class="tab-panel active">
-            <div class="card">
-                <form id="sadhana-form">
-                    <label class="form-label">Date</label>
-                    <select id="sadhana-date" required></select>
-
-                    <label class="form-label">Bed Time (Previous Night)</label>
-                    <input type="time" id="sleep-time" required oninput="updateTimeHint('sleep-time','sleep-hint')">
-                    <div id="sleep-hint" class="time-hint"></div>
-
-                    <label class="form-label">Wake Up Time</label>
-                    <input type="time" id="wakeup-time" required oninput="updateTimeHint('wakeup-time','wakeup-hint')">
-                    <div id="wakeup-hint" class="time-hint"></div>
-
-                    <label class="form-label">Chanting Completed By</label>
-                    <input type="time" id="chanting-time" required oninput="updateTimeHint('chanting-time','chanting-hint')">
-                    <div id="chanting-hint" class="time-hint"></div>
-
-                    <label class="form-label">Reading (Pathan) — Minutes</label>
-                    <input type="number" id="reading-mins" value="0" min="0" required>
-
-                    <label class="form-label">Hearing (Shravan) — Minutes</label>
-                    <input type="number" id="hearing-mins" value="0" min="0" required>
-
-                    <div id="service-area">
-                        <label class="form-label">Service (Seva) — Minutes</label>
-                        <input type="number" id="service-mins" value="0" min="0" required>
+        <!-- ══ HOME PANEL ══ -->
+        <div id="home-panel" class="tab-panel">
+            <div class="card home-ring-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0;flex-wrap:wrap;gap:8px;">
+                    <div class="section-title" style="margin:0;">📅 Weekly Summary</div>
+                    <div class="chart-tabs" style="margin:0;" id="home-week-tabs">
+                        <button class="chart-tab-btn active" onclick="switchHomeWeek(0,this)">This Week</button>
+                        <button class="chart-tab-btn"        onclick="switchHomeWeek(1,this)">Last Week</button>
                     </div>
-                    <div id="notes-area" class="hidden">
-                        <label class="form-label">Notes Revision — Minutes</label>
-                        <input type="number" id="notes-mins" value="0" min="0">
+                </div>
+                <div class="home-ring-row">
+                    <div class="home-ring-wrap">
+                        <canvas id="home-ring-canvas" width="120" height="120"></canvas>
+                        <div class="home-ring-overlay">
+                            <div class="home-ring-pct" id="home-ring-pct">--%</div>
+                            <div style="font-size:10px;color:var(--text-3);">score</div>
+                        </div>
                     </div>
-
-                    <label class="form-label">Day Sleep — Minutes</label>
-                    <input type="number" id="day-sleep-minutes" value="0" required>
-
-                    <button type="submit" class="btn-success" style="margin-top:16px;">Submit Sadhana</button>
-                </form>
-            </div>
-        </div>
-
-        <!-- MY REPORTS -->
-        <div id="reports-panel" class="tab-panel">
-            <div style="margin-bottom:14px;">
-                <button onclick="downloadUserExcel(currentUser.uid, userProfile.name)" class="btn-success btn-sm" style="width:auto;padding:9px 20px;">
-                    Download My History (Excel)
-                </button>
-            </div>
-            <div id="weekly-reports-container"></div>
-        </div>
-
-        <!-- MY PROGRESS CHARTS -->
-        <div id="progress-panel" class="tab-panel">
-            <div class="card">
-                <h3 style="margin:0 0 14px;color:var(--primary);font-size:16px;">My Progress</h3>
-                <div class="chart-tabs">
-                    <button class="chart-tab-btn active" onclick="setChartView('daily', this)">Daily</button>
-                    <button class="chart-tab-btn"        onclick="setChartView('weekly', this)">Weekly</button>
-                    <button class="chart-tab-btn"        onclick="setChartView('monthly', this)">Monthly</button>
-                </div>
-                <div class="chart-container"><canvas id="my-progress-chart"></canvas></div>
-                <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">Daily max: 160 · Weekly max: 1120</p>
-            </div>
-            <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;">
-                <div>
-                    <div style="font-weight:700;font-size:14px;color:var(--primary);">&#128202; Activity Analysis</div>
-                    <div style="font-size:12px;color:var(--muted);margin-top:2px;">See which activities you're excelling at and where to improve</div>
-                </div>
-                <button class="btn-primary" style="width:auto;padding:8px 16px;font-size:13px;white-space:nowrap;margin-left:12px;"
-                    onclick="openActivityAnalysis(currentUser.uid, userProfile.name)">View &#8594;</button>
-            </div>
-        </div>
-
-        <!-- USER WCR PANEL -->
-        <div id="wcr-panel" class="tab-panel">
-            <div class="card" style="margin-bottom:14px;">
-                <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128202; Weekly Comparative Report</h3>
-                <!-- Performers -->
-                <div id="user-performers-section" style="margin-bottom:18px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        <div style="font-size:13px;font-weight:700;color:#555;">&#127942; Best &amp; Weak Performers</div>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <!-- Year -->
-                            <select id="perf-year-sel" onchange="onPerfYearChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
-                            <!-- Month -->
-                            <select id="perf-month-sel" onchange="onPerfMonthChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
-                            <!-- Week (hidden when Monthly tab) -->
-                            <select id="perf-week-sel" onchange="onPerfWeekChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;display:none;"></select>
-                            <div style="display:flex;gap:4px;">
-                                <button class="perf-tab-btn active" id="perf-tab-weekly" onclick="setPerfTab('weekly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #1A3C5E;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
-                                <button class="perf-tab-btn" id="perf-tab-monthly" onclick="setPerfTab('monthly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
+                    <div class="home-ring-stats">
+                        <div class="home-stat-row">
+                            <div class="home-stat-chip">
+                                <span class="hsv" id="home-week-pts">--</span>
+                                <span class="hsl">Points</span>
+                            </div>
+                            <div class="home-stat-chip">
+                                <span class="hsv" id="home-days-count">0</span>
+                                <span class="hsl">Days Filled</span>
+                            </div>
+                        </div>
+                        <div class="home-stat-row">
+                            <div class="home-stat-chip" style="flex:1;">
+                                <span class="hsv" id="home-streak-count">0</span>
+                                <span class="hsl">🔥 day streak</span>
                             </div>
                         </div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                        <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
-                            <div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:10px;">&#127942; Top Performers</div>
-                            <div id="best-performers-chart"></div>
+                </div>
+                <div class="streak-dots-row" id="home-streak-row"></div>
+            </div>
+            <div class="card home-fill-alert hidden" id="home-fill-alert">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                    <span style="font-size:24px;">⚠️</span>
+                    <span style="font-size:14px;font-weight:600;color:var(--primary);" id="home-fill-msg">Haven't filled today's sadhna yet <span style="font-weight:400;color:var(--text-2);font-size:12.5px;">(आज की साधना अभी भरी नहीं है)</span></span>
+                </div>
+                <button class="btn-primary submit-btn" onclick="switchTab('mysadhana');switchSadhanaTab('entry')"
+                    style="width:100%;padding:12px;font-size:14px;">📝 Fill Today's Sadhna →</button>
+            </div>
+            <div class="card" id="home-activity-card" style="display:none;">
+                <div class="section-title">📊 Activity This Week</div>
+                <div id="home-activity-bars"></div>
+            </div>
+            <div class="card">
+                <div class="section-title">📢 Tasks &amp; Announcements</div>
+                <div id="tasks-container"><p style="color:#aaa;text-align:center;padding:16px;">Loading…</p></div>
+            </div>
+        </div>
+
+        <!-- ══ MY SADHANA PANEL ══ -->
+        <div id="mysadhana-panel" class="tab-panel">
+            <div class="subtab-bar">
+                <button class="subtab-btn active" id="stab-entry"    onclick="switchSadhanaTab('entry',this)">📝 Entry</button>
+                <button class="subtab-btn"         id="stab-reports"  onclick="switchSadhanaTab('reports',this)">📋 Reports</button>
+                <button class="subtab-btn"         id="stab-progress" onclick="switchSadhanaTab('progress',this)">📈 Progress</button>
+            </div>
+            <div id="sadhana-entry-sub" class="sub-panel active">
+                <div class="card" style="padding:18px;">
+                    <form id="sadhana-form">
+                        <!-- Date -->
+                        <div style="margin-bottom:16px;">
+                        <label class="form-label" style="margin-top:0;">📅 Date</label>
+                        <select id="sadhana-date" required></select>
+                    </div>
+
+                    <!-- Time Group -->
+                    <div class="form-section">
+                        <div class="form-section-title">⏰ Times</div>
+                        <div class="field-row-2" style="margin-bottom:10px;">
+                            <div class="field-group">
+                                <label class="form-label">🛌 Bed Time</label>
+                                <input type="time" id="sleep-time" required oninput="updateTimeHint('sleep-time','sleep-hint')">
+                                <div id="sleep-hint" class="time-hint"></div>
+                            </div>
+                            <div class="field-group">
+                                <label class="form-label">⏰ Wake Up</label>
+                                <input type="time" id="wakeup-time" required oninput="updateTimeHint('wakeup-time','wakeup-hint')">
+                                <div id="wakeup-hint" class="time-hint"></div>
+                            </div>
                         </div>
-                        <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
-                            <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:10px;">&#128997; Needs Attention</div>
-                            <div id="weak-performers-chart"></div>
+                        <div class="field-group">
+                            <label class="form-label">📿 Chanting Completed By</label>
+                            <input type="time" id="chanting-time" required oninput="updateTimeHint('chanting-time','chanting-hint')">
+                            <div id="chanting-hint" class="time-hint"></div>
                         </div>
                     </div>
+
+                    <!-- Activities Group -->
+                    <div class="form-section">
+                        <div class="form-section-title">📖 Activities (minutes)</div>
+                        <div class="field-row-2">
+                            <div class="field-group">
+                                <label class="form-label">📖 Reading</label>
+                                <input type="number" id="reading-mins" value="0" min="0" required>
+                            </div>
+                            <div class="field-group">
+                                <label class="form-label">🎧 Hearing</label>
+                                <input type="number" id="hearing-mins" value="0" min="0" required>
+                            </div>
+                            <div id="service-area" class="field-group">
+                                <label class="form-label">🛠️ Service</label>
+                                <input type="number" id="service-mins" value="0" min="0" required>
+                            </div>
+                            <div id="notes-area" class="field-group hidden">
+                                <label class="form-label">📝 Notes Revision</label>
+                                <input type="number" id="notes-mins" value="0" min="0">
+                            </div>
+                            <div class="field-group">
+                                <label class="form-label">😴 Day Sleep</label>
+                                <input type="number" id="day-sleep-minutes" value="0" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-success submit-btn" style="margin-top:4px;padding:14px;font-size:15px;letter-spacing:0.02em;">
+                        ✅ Submit Sadhna
+                    </button>
+                </form>
                 </div>
-                <!-- Comparative Table -->
-                <div id="user-wcr-container"></div>
+            </div>
+            <!-- Reports sub-panel -->
+            <div id="sadhana-reports-sub" class="sub-panel">
+                <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;">
+                    <div style="font-weight:700;font-size:14px;color:var(--primary);">📅 My Sadhna History</div>
+                    <button onclick="downloadUserExcel(currentUser.uid, userProfile.name)" class="btn-success btn-sm" style="width:auto;padding:8px 16px;">⬇ Excel</button>
+                </div>
+                <div id="weekly-reports-container"></div>
+            </div>
+            <!-- Progress sub-panel -->
+            <div id="sadhana-progress-sub" class="sub-panel">
+                <div class="card">
+                    <div class="section-title">📈 My Progress</div>
+                    <div class="chart-tabs">
+                        <button class="chart-tab-btn active" onclick="setChartView('daily', this)">Daily</button>
+                        <button class="chart-tab-btn"        onclick="setChartView('weekly', this)">Weekly</button>
+                        <button class="chart-tab-btn"        onclick="setChartView('monthly', this)">Monthly</button>
+                    </div>
+                    <div class="chart-container"><canvas id="my-progress-chart"></canvas></div>
+                    <p style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px;">Daily max: 160 · Weekly max: 1120</p>
+                </div>
+                <div class="card" style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;">
+                    <div>
+                        <div style="font-weight:700;font-size:14px;color:var(--primary);">📊 Activity Analysis</div>
+                        <div style="font-size:12px;color:var(--muted);margin-top:2px;">See where you're excelling and where to improve</div>
+                    </div>
+                    <button class="btn-primary" style="width:auto;padding:8px 16px;font-size:13px;white-space:nowrap;margin-left:12px;"
+                        onclick="openActivityAnalysis(currentUser.uid, userProfile.name)">View →</button>
+                </div>
             </div>
         </div>
 
-        <!-- LEADERBOARD PANEL (shared for regular users; SA uses sub-panel) -->
-        <div id="leaderboard-panel" class="tab-panel">
-            <div class="card">
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-                    <h3 style="margin:0;color:var(--primary);font-size:15px;">&#127942; Leaderboard</h3>
-                    <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">&#8635; Refresh</button>
+        <!-- ══ TEAM PANEL ══ -->
+        <div id="team-panel" class="tab-panel">
+            <!-- Sub-tabs: Rankings always shown; WCR visible for admins only -->
+            <div class="subtab-bar" id="team-subtab-bar">
+                <button class="subtab-btn active" id="team-btn-rankings" onclick="switchTeamTab('rankings',this)">🏆 Rankings</button>
+                <button class="subtab-btn hidden" id="team-btn-wcr"      onclick="switchTeamTab('wcr',this)">📊 WCR</button>
+            </div>
+            <!-- Rankings sub-panel -->
+            <div id="team-rankings-sub" class="sub-panel active">
+                <div class="card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                        <div class="section-title" style="margin:0;">🏆 Leaderboard</div>
+                        <button onclick="loadLeaderboard(true)" style="width:auto;padding:6px 14px;font-size:12px;" class="btn-primary">⟳ Refresh</button>
+                    </div>
+                    <div class="chart-tabs" style="margin-bottom:12px;" id="lb-mode-tabs">
+                        <button class="chart-tab-btn active" onclick="setLbMode('daily',this)">Yesterday</button>
+                        <button class="chart-tab-btn" onclick="setLbMode('current-week',this)">This Week</button>
+                        <button class="chart-tab-btn" onclick="setLbMode('prev-week',this)">Last Week</button>
+                    </div>
+                    <div id="lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:10px;"></div>
+                    <div class="lb-podium-wrap">
+                        <div id="lb-podium" class="lb-podium" style="display:none;"></div>
+                    </div>
+                    <div id="leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
                 </div>
-                <div class="chart-tabs" style="margin-bottom:10px;" id="lb-mode-tabs">
-                    <button class="chart-tab-btn active" onclick="setLbMode('daily',this)">Yesterday</button>
-                    <button class="chart-tab-btn" onclick="setLbMode('current-week',this)">This Week</button>
-                    <button class="chart-tab-btn" onclick="setLbMode('prev-week',this)">Last Week</button>
+            </div>
+            <!-- WCR sub-panel (category admins only) -->
+            <div id="team-wcr-sub" class="sub-panel">
+                <div class="card">
+                    <div class="section-title" style="margin-bottom:14px;">📊 Weekly Comparative Report</div>
+                    <div id="user-performers-section" style="margin-bottom:18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <div style="font-size:13px;font-weight:700;color:#555;">🏆 Best &amp; Weak Performers</div>
+                            <div style="display:flex;gap:6px;align-items:center;">
+                                <select id="perf-year-sel" onchange="onPerfYearChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                                <select id="perf-month-sel" onchange="onPerfMonthChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;"></select>
+                                <select id="perf-week-sel" onchange="onPerfWeekChange()" style="width:auto;padding:5px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;display:none;"></select>
+                                <div style="display:flex;gap:4px;">
+                                    <button class="perf-tab-btn active" id="perf-tab-weekly" onclick="setPerfTab('weekly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #1A3C5E;background:#1A3C5E;color:white;cursor:pointer;margin:0;">Weekly</button>
+                                    <button class="perf-tab-btn" id="perf-tab-monthly" onclick="setPerfTab('monthly',this)" style="width:auto;padding:4px 11px;font-size:11px;font-weight:700;border-radius:16px;border:1.5px solid #ddd;background:white;color:#555;cursor:pointer;margin:0;">Monthly</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                                <div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:10px;">🏆 Top Performers</div>
+                                <div id="best-performers-chart"></div>
+                            </div>
+                            <div class="card" style="padding:14px;border:1px solid #e5e7eb;">
+                                <div style="font-size:12px;font-weight:700;color:#dc2626;margin-bottom:10px;">🔴 Needs Attention</div>
+                                <div id="weak-performers-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="user-wcr-container"></div>
                 </div>
-                <div id="lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:10px;"></div>
-                <div id="leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
             </div>
         </div>
 
-        <!-- TASKS PANEL (for regular users) -->
-        <div id="tasks-panel" class="tab-panel">
-            <div class="card">
-                <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128203; Tasks &amp; Announcements</h3>
-                <div id="tasks-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
-            </div>
-        </div>
-
-        <!-- ADMIN PANEL -->
+        <!-- ADMIN PANEL (SA direct access + category admin Manage tab) -->
         <div id="admin-panel" class="tab-panel">
+
+            <!-- Sub-nav shown for category admins via Manage tab (hidden for SA who uses bottom nav) -->
+            <div id="admin-sub-nav" class="subtab-bar" style="display:none;">
+                <button class="subtab-btn active" onclick="selectAdminSection('reports',this)">📊 WCR</button>
+                <button class="subtab-btn"        onclick="selectAdminSection('usermgmt',this)">👤 Devotees</button>
+                <button class="subtab-btn"        onclick="selectAdminSection('inactive',this)">⚠️ Inactive</button>
+                <button class="subtab-btn"        onclick="selectAdminSection('leaderboard',this)">🏆 Rankings</button>
+            </div>
 
             <!-- Content area -->
             <div id="admin-content-area">
@@ -1234,6 +1758,9 @@
                             <button class="chart-tab-btn" onclick="setLbMode('prev-week',this)">Last Week</button>
                         </div>
                         <div id="sa-lb-date-label" style="font-size:12px;color:#6b7280;margin-bottom:10px;"></div>
+                        <div class="lb-podium-wrap">
+                            <div id="sa-lb-podium" class="lb-podium" style="display:none;"></div>
+                        </div>
                         <div id="sa-leaderboard-container"><p style="color:#aaa;text-align:center;padding:20px;">Loading…</p></div>
                     </div>
                 </div>
@@ -1405,12 +1932,12 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
-<!-- MODAL: Edit Sadhana (Super Admin only)                 -->
+<!-- MODAL: Edit Sadhna (Super Admin only)                  -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div id="edit-sadhana-modal" class="modal-overlay hidden">
     <div class="modal-box md">
         <button class="modal-close" onclick="closeEditModal()">×</button>
-        <div class="modal-title" id="edit-modal-title">✏️ Edit Sadhana</div>
+        <div class="modal-title" id="edit-modal-title">✏️ Edit Sadhna</div>
 
         <!-- Hidden: user level for scoring context -->
         <input type="hidden" id="edit-user-level">
@@ -1520,12 +2047,12 @@
 <div id="user-guide-modal" class="modal-overlay hidden">
     <div class="modal-box md">
         <button class="modal-close" onclick="document.getElementById('user-guide-modal').classList.add('hidden')">×</button>
-        <div class="modal-title">📖 How to Use Sadhana Tracker</div>
+        <div class="modal-title">📖 How to Use Sadhna Tracker</div>
         <div style="overflow-y:auto;max-height:70vh;">
 
             <div class="guide-section">
                 <h3>🏠 What is this App?</h3>
-                <div class="guide-row"><span class="guide-icon">📿</span><span>This app helps you track your daily spiritual practices (Sadhana) — like chanting, reading, hearing, and service. Your coordinator can see your progress and guide you better.</span></div>
+                <div class="guide-row"><span class="guide-icon">📿</span><span>This app helps you track your daily spiritual practices (Sadhna) — like chanting, reading, hearing, and service. Your coordinator can see your progress and guide you better.</span></div>
             </div>
 
             <div class="guide-section">
@@ -1534,7 +2061,7 @@
                 <div class="guide-row"><span class="guide-icon">2️⃣</span><span>Select today's date from the dropdown.</span></div>
                 <div class="guide-row"><span class="guide-icon">3️⃣</span><span>Fill in what time you slept last night, woke up, and completed chanting.</span></div>
                 <div class="guide-row"><span class="guide-icon">4️⃣</span><span>Enter minutes spent in Reading, Hearing, and Service.</span></div>
-                <div class="guide-row"><span class="guide-icon">5️⃣</span><span>Tap <b>Submit Sadhana</b>. Done! ✅</span></div>
+                <div class="guide-row"><span class="guide-icon">5️⃣</span><span>Tap <b>Submit Sadhna</b>. Done! ✅</span></div>
                 <div class="guide-row"><span class="guide-icon">⚠️</span><span>You can only submit once per day. Fill it every day for best results.</span></div>
             </div>
 
@@ -1569,7 +2096,7 @@
 
             <div class="guide-section">
                 <h3>🔔 Notifications</h3>
-                <div class="guide-row"><span class="guide-icon">🔔</span><span>Tap the bell in the menu → Allow → You will get reminders if you forget to fill Sadhana for 2+ days.</span></div>
+                <div class="guide-row"><span class="guide-icon">🔔</span><span>Tap the bell in the menu → Allow → You will get reminders if you forget to fill Sadhna for 2+ days.</span></div>
             </div>
 
             <div class="guide-section">
@@ -1592,7 +2119,7 @@
             <div style="font-size:18px;font-weight:700;color:#1A3C5E;margin-bottom:4px;">Krishna Parayan</div>
             <div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-style:italic;">Let's Move to Supreme Lord</div>
             <div style="font-size:13px;color:#444;line-height:1.7;text-align:left;background:#f9fafb;padding:14px;border-radius:10px;">
-                <b>Sadhana Tracker</b> is a tool built to help devotees track their daily spiritual practices and stay accountable to their Sadhana routine.<br><br>
+                <b>Sadhna Tracker</b> is a tool built to help devotees track their daily spiritual practices and stay accountable to their Sadhna routine.<br><br>
                 Built with love and dedication for the Krishna Parayan community. 🙏<br><br>
                 <span style="color:var(--muted);font-size:12px;">For support, contact your category coordinator.</span>
             </div>
@@ -1625,29 +2152,28 @@ window.togglePwd = (inputId, btn) => {
     </div>
     <div class="uac-body">
         <button class="uac-btn" onclick="uacHistory()">
-            <div class="uac-ico" style="background:#dbeafe;">&#128203;</div><span>View History</span>
+            <div class="uac-ico" style="background:#dbeafe;">📋</div><span>View History</span>
         </button>
         <button class="uac-btn" onclick="uacExcel()">
-            <div class="uac-ico" style="background:#dcfce7;">&#128229;</div><span>Download Excel</span>
+            <div class="uac-ico" style="background:#dcfce7;">📥</div><span>Download Excel</span>
         </button>
         <button class="uac-btn" onclick="uacProgress()">
-            <div class="uac-ico" style="background:#ede9fe;">&#128200;</div><span>View Progress</span>
+            <div class="uac-ico" style="background:#ede9fe;">📈</div><span>View Progress</span>
         </button>
         <div id="uac-activity-wrap">
             <button class="uac-btn" onclick="uacActivity()">
-                <div class="uac-ico" style="background:#fef3c7;">&#128202;</div><span>Activity Analysis</span>
+                <div class="uac-ico" style="background:#fef3c7;">📊</div><span>Activity Analysis</span>
             </button>
         </div>
-        <div id="uac-role-wrap">
+        <div id="uac-role-wrap" class="uac-fullwidth">
             <hr class="uac-divider">
             <div class="uac-role-label">Change Role</div>
             <select id="uac-role-sel" class="uac-role-sel" onchange="uacRoleChange(this)">
                 <option value="" disabled selected>Select&#8230;</option>
             </select>
         </div>
-        <hr class="uac-divider">
-        <button class="uac-btn danger" onclick="uacRemove()">
-            <div class="uac-ico" style="background:#fee2e2;">&#128465;&#65039;</div><span>Remove User</span>
+        <button class="uac-btn danger uac-fullwidth" onclick="uacRemove()">
+            <div class="uac-ico" style="background:#fee2e2;">🗑️</div><span>Remove User</span>
         </button>
     </div>
 </div>
@@ -1697,6 +2223,53 @@ window.togglePwd = (inputId, btn) => {
                 </div>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- ── USER BOTTOM NAV ── -->
+<nav id="user-bottom-nav" class="bottom-nav">
+    <button class="bnav-item active" onclick="switchTab('home')">
+        <span class="bnav-icon">🏠</span><span>Home</span>
+    </button>
+    <button class="bnav-item" onclick="switchTab('mysadhana')">
+        <span class="bnav-icon">🧘</span><span>Sadhna</span>
+    </button>
+    <button class="bnav-item" onclick="switchTab('team')">
+        <span class="bnav-icon">🏆</span><span>Team</span>
+    </button>
+    <button class="bnav-item" id="bnav-manage" style="display:none;" onclick="switchTab('manage')">
+        <span class="bnav-icon">⚙️</span><span>Manage</span>
+    </button>
+</nav>
+
+<!-- ── SA BOTTOM NAV ── -->
+<nav id="sa-bottom-nav" class="bottom-nav">
+    <button class="bnav-item active" onclick="saBnavTab('reports')">
+        <span class="bnav-icon">📊</span><span>WCR</span>
+    </button>
+    <button class="bnav-item" onclick="saBnavTab('usermgmt')">
+        <span class="bnav-icon">👥</span><span>Devotees</span>
+    </button>
+    <button class="bnav-item" onclick="saBnavTab('inactive')">
+        <span class="bnav-icon">⚠️</span><span>Inactive</span>
+    </button>
+    <button class="bnav-item" onclick="saBnavTab('leaderboard')">
+        <span class="bnav-icon">🏆</span><span>Rankings</span>
+    </button>
+    <button class="bnav-item" onclick="saBnavTab('tasks')">
+        <span class="bnav-icon">📋</span><span>Tasks</span>
+    </button>
+</nav>
+
+<!-- ── SUBMIT SUCCESS OVERLAY ── -->
+<div id="submit-success-overlay">
+    <div class="submit-success-card">
+        <div class="success-icon">🙏</div>
+        <div class="success-score" id="ss-score">--</div>
+        <div class="success-label">out of 160 pts</div>
+        <div class="success-bar-wrap"><div class="success-bar-fill" id="ss-bar"></div></div>
+        <div id="ss-pct">--%</div>
+        <div class="success-msg" id="ss-msg"></div>
     </div>
 </div>
 </body>

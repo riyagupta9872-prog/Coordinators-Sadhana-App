@@ -1,7 +1,7 @@
 {
-  "name": "Sadhana Tracker",
-  "short_name": "Sadhana",
-  "description": "Daily Sadhana tracking for Krishna Parayan devotees",
+  "name": "Sadhna Tracker",
+  "short_name": "Sadhna",
+  "description": "Daily Sadhna tracking for Krishna Parayan devotees",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

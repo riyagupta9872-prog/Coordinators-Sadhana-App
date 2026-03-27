@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - Sadhana Tracker</title>
+    <title>Sign Up - Sadhna Tracker</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -152,7 +152,8 @@
                 level:            level,
                 chantingCategory: chanting,
                 exactRounds:      rounds,
-                role:             'user'
+                role:             'user',
+                joinedDate:       new Date().toISOString().split('T')[0]
             });
 
             // 3. Success — redirect to app
@@ -164,9 +165,17 @@
             setTimeout(() => { window.location.href = 'index.html'; }, 1600);
 
         } catch (err) {
+            const friendly = {
+                'auth/email-already-in-use':   'An account with this email already exists. Try logging in instead.',
+                'auth/invalid-email':          'The email address is not valid. Please check and try again.',
+                'auth/weak-password':          'Password is too weak. Please use at least 6 characters.',
+                'auth/too-many-requests':      'Too many attempts. Please wait a few minutes and try again.',
+                'auth/network-request-failed': 'No internet connection. Please check your network and try again.',
+                'auth/operation-not-allowed':  'Sign-up is currently disabled. Please contact your coordinator.',
+            };
             msg.className     = 'msg error';
             msg.style.display = 'block';
-            msg.textContent   = err.message;
+            msg.textContent   = '❌ ' + (friendly[err.code] || 'Something went wrong. Please try again later.');
             btn.disabled      = false;
             btn.textContent   = 'Create Account & Start →';
         }

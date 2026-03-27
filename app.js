@@ -82,6 +82,16 @@ function getNRData(date) {
     };
 }
 
+// Pre-join placeholder — no penalties, just dashes
+function getPreJoinData(date) {
+    return {
+        id: date, totalScore: 0, dayPercent: 0, preJoin: true,
+        sleepTime:'—', wakeupTime:'—', chantingTime:'—',
+        readingMinutes:0, hearingMinutes:0, serviceMinutes:0, notesMinutes:0, daySleepMinutes:0,
+        scores:{ sleep:0, wakeup:0, chanting:0, reading:0, hearing:0, service:0, notes:0, daySleep:0 }
+    };
+}
+
 function isPastDate(dateStr) {
     return dateStr < localDateStr(0);
 }
@@ -162,7 +172,7 @@ window.downloadUserExcel = async (userId, userName) => {
         const uDoc = await db.collection('users').doc(userId).get();
         const uData = uDoc.exists ? uDoc.data() : {};
         const snap = await db.collection('users').doc(userId).collection('sadhana').get();
-        if (snap.empty) { alert('No sadhana data found for this user.'); return; }
+        if (snap.empty) { alert('No sadhna data found for this user.'); return; }
         const weeksData = {};
         snap.forEach(doc => {
             const wi = getWeekInfo(doc.id);
@@ -200,7 +210,8 @@ window.downloadUserExcel = async (userId, userName) => {
                 const cd  = new Date(wStart); cd.setDate(cd.getDate()+i);
                 const ds  = cd.toISOString().split('T')[0];
                 const lbl = `${DAY[i]} ${String(cd.getDate()).padStart(2,'0')}`;
-                const e   = week.days[ds] || getNRData(ds);
+                const _exJd = uData.joinedDate || APP_START;
+                const e   = (ds < _exJd) ? getPreJoinData(ds) : (week.days[ds] || getNRData(ds));
                 const dRow = dataArray.length;
                 T.sl+=e.scores?.sleep??0; T.wu+=e.scores?.wakeup??0; T.ch+=e.scores?.chanting??0;
                 T.rd+=e.scores?.reading??0; T.hr+=e.scores?.hearing??0; T.sv+=e.scores?.service??0;
@@ -220,9 +231,9 @@ window.downloadUserExcel = async (userId, userName) => {
                     e.daySleepMinutes||0, e.scores?.daySleep??0,
                     e.totalScore??0, (e.dayPercent??0)+'%'
                 ]);
-                styleMap[dRow] = (e.sleepTime === 'NR') ? 'nr' : 'data';
+                styleMap[dRow] = e.preJoin ? 'data' : (e.sleepTime === 'NR') ? 'nr' : 'data';
             }
-            const fd      = fairDenominator(week.sunStr, Object.entries(week.days).map(([id,d])=>({id,sleepTime:d.sleepTime||''})));
+            const fd      = fairDenominator(week.sunStr, Object.entries(week.days).map(([id,d])=>({id,sleepTime:d.sleepTime||''})), uData.joinedDate);
             const pct     = Math.round((T.tot/fd)*100);
             const totRow  = dataArray.length;
             dataArray.push(['WEEKLY TOTAL','',T.sl,'',T.wu,'',T.ch,T.rdm,T.rd,T.hrm,T.hr,T.svm,T.sv,T.ntm,T.nt,T.dsm,T.ds,T.tot,pct+'%']);
@@ -286,8 +297,8 @@ window.downloadUserExcel = async (userId, userName) => {
         });
         ws['!freeze'] = { xSplit:1, ySplit:PROFILE_ROWS, topLeftCell:'B9' };
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Sadhana_Weekly');
-        xlsxSave(wb, `${userName.replace(/\s+/g,'_')}_Sadhana_Weekly.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Sadhna_Weekly');
+        xlsxSave(wb, `${userName.replace(/\s+/g,'_')}_Sadhna_Weekly.xlsx`);
     } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
 };
 
@@ -311,17 +322,19 @@ window.downloadMasterReport = async () => {
         const rows = [['User Name','Position Level','Chanting Category',...allWeeks.map(w=>w.label.replace('_',' '))]];
         userData.forEach(({user,entries}) => {
             const row = [user.name, user.level||'Senior Batch', user.chantingCategory||'Level-1'];
+            const mJd = user.joinedDate || APP_START;
             allWeeks.forEach(({ sunStr }) => {
                 let tot = 0; const masterWeekEnts = [];
                 const wSun = new Date(sunStr);
                 for (let i=0;i<7;i++) {
                     const c  = new Date(wSun); c.setDate(c.getDate()+i);
                     const ds = c.toISOString().split('T')[0];
+                    if (ds < mJd) continue; // skip pre-join dates
                     const en = entries.find(e=>e.date===ds);
                     tot += en ? en.score : -35;
                     if(en) masterWeekEnts.push({id:ds,sleepTime:en.sleepTime||''});
                 }
-                const mfd = fairDenominator(wSun, masterWeekEnts);
+                const mfd = fairDenominator(wSun, masterWeekEnts, mJd);
                 const pct = Math.round((tot/mfd)*100);
                 row.push(pct < 0 ? `(${Math.abs(pct)}%)` : `${pct}%`);
             });
@@ -352,7 +365,7 @@ window.downloadMasterReport = async () => {
         ws['!cols'] = [{ wch:22 }, { wch:16 }, { wch:12 }, ...Array(allWeeks.length).fill({ wch:18 })];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Master_Report');
-        xlsxSave(wb, 'Master_Sadhana_Report.xlsx');
+        xlsxSave(wb, 'Master_Sadhna_Report.xlsx');
     } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
 };
 
@@ -379,6 +392,8 @@ function resetAppState() {
     _lbLoading          = false;
     _lbCategoryFilter   = '';
     _lbMode             = 'daily';
+    _homeWeekOffset     = 0;
+    _sSadhanaTab        = 'entry';
     // Activity Analysis
     if (_aaChartDonut) { try { _aaChartDonut.destroy(); } catch(e){} _aaChartDonut = null; }
     if (_aaChartBar)   { try { _aaChartBar.destroy();   } catch(e){} _aaChartBar   = null; }
@@ -386,6 +401,12 @@ function resetAppState() {
     // Charts — destroy to prevent canvas reuse errors
     if (myChartInstance)    { try { myChartInstance.destroy();    } catch(e){} myChartInstance    = null; }
     if (modalChartInstance) { try { modalChartInstance.destroy(); } catch(e){} modalChartInstance = null; }
+    // Bottom nav
+    const ubn = document.getElementById('user-bottom-nav');
+    const sbn = document.getElementById('sa-bottom-nav');
+    if (ubn) ubn.classList.remove('visible');
+    if (sbn) sbn.classList.remove('visible');
+    document.body.classList.remove('has-bottom-nav');
     // Active Firestore real-time listener
     if (activeListener) { activeListener(); activeListener = null; }
     // Edit / reject modal state
@@ -405,7 +426,7 @@ auth.onAuthStateChanged((user) => {
         _profileUnsub = db.collection('users').doc(user.uid).onSnapshot(docSnap => {
             if (!docSnap.exists) { showSection('profile'); return; }
             userProfile = docSnap.data();
-            if (!userProfile.level) {
+            if (!userProfile.level && userProfile.role !== 'superAdmin') {
                 document.getElementById('profile-title').textContent    = 'Complete Your Profile';
                 document.getElementById('profile-subtitle').textContent = 'Please fill in your details to continue';
                 document.getElementById('profile-name').value           = userProfile.name || '';
@@ -442,34 +463,62 @@ function initDashboard() {
     const saTabs   = document.getElementById('sa-nav-tabs');
     const adminBtn = document.getElementById('admin-menu-btn');
 
+    const userBnav = document.getElementById('user-bottom-nav');
+    const saBnav   = document.getElementById('sa-bottom-nav');
+
     if (isSuperAdmin()) {
-        // SuperAdmin: show SA tabs, hide regular tabs, hide gear btn
+        // SuperAdmin: SA bottom nav, admin panel — no home/sadhna panels
         if (userTabs) userTabs.style.display = 'none';
-        if (saTabs)   saTabs.style.display   = '';
+        if (saTabs)   saTabs.style.display   = 'none';
         if (adminBtn) adminBtn.classList.add('hidden');
-        // Switch to admin panel, load data, show WCR by default
+        if (userBnav) userBnav.classList.remove('visible');
+        if (saBnav)   saBnav.classList.add('visible');
+        document.body.classList.add('has-bottom-nav');
+        // Explicitly force-hide user panels (safety against cached active class)
+        ['home-panel','mysadhana-panel','team-panel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.classList.remove('active'); el.style.display = 'none'; }
+        });
+        // SA doesn't do tasks — hide tasks bell in header
+        const tasksBtn = document.getElementById('header-tasks-btn');
+        if (tasksBtn) tasksBtn.style.display = 'none';
+        const adminSubNav = document.getElementById('admin-sub-nav');
+        if (adminSubNav) adminSubNav.style.display = 'none';
         switchTab('admin');
         adminPanelLoaded = true;
         loadAdminPanel();
-        // Show WCR sub-panel
         document.querySelectorAll('.admin-sub-panel').forEach(p => {
             p.classList.remove('active'); p.classList.add('hidden');
         });
         const wcr = document.getElementById('admin-sub-reports');
         if (wcr) { wcr.classList.remove('hidden'); wcr.classList.add('active'); }
-        // Show level filter bars
         document.querySelectorAll('.sa-lvl-bar').forEach(b => b.style.display = 'flex');
     } else {
-        // Regular user or category admin
-        if (userTabs) userTabs.style.display = '';
+        // Regular user or category admin — user bottom nav
+        if (userTabs) userTabs.style.display = 'none'; // replaced by bottom nav
         if (saTabs)   saTabs.style.display   = 'none';
-        if (isAnyAdmin() && adminBtn) adminBtn.classList.remove('hidden');
-        // Show WCR tab for everyone (users + category admins)
-        const wcrTab = document.getElementById('user-wcr-tab');
-        if (wcrTab) wcrTab.style.display = '';
-        switchTab('sadhana');
+        if (saBnav)   saBnav.classList.remove('visible');
+        if (userBnav) userBnav.classList.add('visible');
+        document.body.classList.add('has-bottom-nav');
+        // Show Manage tab for category admins
+        const manageBtn = document.getElementById('bnav-manage');
+        if (manageBtn) manageBtn.style.display = isAnyAdmin() ? '' : 'none';
+        // Show Team > WCR sub-tab for everyone (users see their category only)
+        const teamWcrBtn = document.getElementById('team-btn-wcr');
+        if (teamWcrBtn) teamWcrBtn.classList.remove('hidden');
+        // Gear button no longer needed (Manage tab replaces drawer for nav)
+        if (adminBtn) adminBtn.classList.add('hidden');
+        // Ensure user panels are visible (might be force-hidden from prior SA session)
+        ['home-panel','mysadhana-panel','team-panel'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = '';
+        });
+        // Show tasks bell for regular users
+        const tasksBtnU = document.getElementById('header-tasks-btn');
+        if (tasksBtnU) tasksBtnU.style.display = '';
         setupDateSelect();
         refreshFormFields();
+        switchTab('home');
     }
     if (window._initNotifications) window._initNotifications();
 }
@@ -535,22 +584,26 @@ async function loadUserWCR() {
         const wcrIdx = window._wcrUserList.length;
         window._wcrUserList.push({ uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user' });
 
+        const nameClick = isAnyAdmin()
+            ? ` onclick="openWCRUser(${wcrIdx})" style="cursor:pointer;" title="View ${u.name||'user'}"`
+            : '';
         tHtml += `<tr style="background:${stripeBg}">
-            <td class="comp-td comp-name" onclick="openWCRUser(${wcrIdx})" style="cursor:pointer;" title="View ${u.name||'user'}">${u.name}</td>
+            <td class="comp-td comp-name"${nameClick}>${u.name}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>`;
 
+        const uJoined = u.joinedDate || APP_START;
         weeks.forEach(w => {
             let tot=0; const weekEnts=[]; const todayC = localDateStr(0);
             let curr=new Date(w.sunStr);
             for (let i=0;i<7;i++) {
                 const ds=curr.toISOString().split('T')[0];
-                if (ds < APP_START || ds > todayC) { curr.setDate(curr.getDate()+1); continue; }
+                if (ds < APP_START || ds > todayC || ds < uJoined) { curr.setDate(curr.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
                 else if (ds < todayC) { tot += -35; }
                 curr.setDate(curr.getDate()+1);
             }
-            const fd  = fairDenominator(w.sunStr, weekEnts);
+            const fd  = fairDenominator(w.sunStr, weekEnts, uJoined);
             const pct = Math.round((tot/fd)*100);
             const ps  = pctStyle(pct);
             const pf  = `<span class="pf-badge ${pct>=50?'pf-pass':'pf-fail'}" style="margin-left:4px;">${pct>=50?'P':'F'}</span>`;
@@ -567,26 +620,253 @@ async function loadUserWCR() {
 }
 
 window.switchTab = (t) => {
-    ['sadhana-panel','reports-panel','progress-panel','admin-panel','wcr-panel','leaderboard-panel','tasks-panel'].forEach(id => {
+    // Normalise: 'manage' maps to 'admin' panel for category admins
+    const panelId = t === 'manage' ? 'admin' : t;
+    ['home-panel','mysadhana-panel','team-panel','admin-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
     });
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    const panel = document.getElementById(t + '-panel');
+    const panel = document.getElementById(panelId + '-panel');
     if (panel) panel.classList.add('active');
-    const btn = document.querySelector(`.tab-btn[onclick*="'${t}'"]`);
+    // Sync user bottom nav (Home=0, Sadhana=1, Team=2, Manage=3)
+    const uTabMap = { home: 0, mysadhana: 1, team: 2, manage: 3, admin: 3 };
+    const uBnavItems = document.querySelectorAll('#user-bottom-nav .bnav-item');
+    uBnavItems.forEach((b, i) => b.classList.toggle('active', i === (uTabMap[t] ?? -1)));
+    // Load data for the tab
+    if (t === 'home') {
+        loadHomePanel(_homeWeekOffset);
+        loadTasks();
+    }
+    if (t === 'team') loadLeaderboard(false);
+    if (t === 'manage' || (t === 'admin' && !isSuperAdmin())) {
+        // Category admin manage tab — show admin-sub-nav, load admin panel
+        const subNav = document.getElementById('admin-sub-nav');
+        if (subNav) subNav.style.display = 'flex';
+        if (!adminPanelLoaded) { adminPanelLoaded = true; loadAdminPanel(); }
+        // default to WCR sub-panel
+        selectAdminSection('reports', null);
+    }
+};
+
+// Sadhana tab sub-navigation (Entry | Reports | Progress)
+let _sSadhanaTab = 'entry';
+window.switchSadhanaTab = (sub, btn) => {
+    _sSadhanaTab = sub;
+    ['sadhana-entry-sub','sadhana-reports-sub','sadhana-progress-sub'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+    });
+    document.querySelectorAll('#mysadhana-panel .subtab-btn').forEach(b => b.classList.remove('active'));
+    const panel = document.getElementById('sadhana-' + sub + '-sub');
+    if (panel) panel.classList.add('active');
+    const btnEl = btn || document.getElementById('stab-' + sub);
+    if (btnEl) btnEl.classList.add('active');
+    if (sub === 'reports')  loadReports(currentUser.uid, 'weekly-reports-container');
+    if (sub === 'progress') loadMyProgressChart('daily');
+};
+
+// Team tab sub-navigation (Rankings | WCR)
+window.switchTeamTab = (sub, btn) => {
+    ['team-rankings-sub','team-wcr-sub'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+    });
+    document.querySelectorAll('#team-subtab-bar .subtab-btn').forEach(b => b.classList.remove('active'));
+    const panel = document.getElementById('team-' + sub + '-sub');
+    if (panel) panel.classList.add('active');
     if (btn) btn.classList.add('active');
-    if (t === 'reports')     loadReports(currentUser.uid, 'weekly-reports-container');
-    if (t === 'progress')    loadMyProgressChart('daily');
-    if (t === 'wcr')         loadUserWCR();
-    if (t === 'leaderboard') loadLeaderboard(false);
-    if (t === 'tasks')       loadTasks();
+    if (sub === 'rankings') loadLeaderboard(false);
+    if (sub === 'wcr')      loadUserWCR();
+};
+
+// Home week filter
+let _homeWeekOffset = 0;
+window.switchHomeWeek = (offset, btn) => {
+    _homeWeekOffset = offset;
+    document.querySelectorAll('#home-week-tabs .chart-tab-btn').forEach((b, i) =>
+        b.classList.toggle('active', i === (offset === 0 ? 0 : 1)));
+    loadHomePanel(offset);
 };
 
 function showSection(sec) {
     ['auth-section','profile-section','dashboard-section'].forEach(id =>
         document.getElementById(id).classList.add('hidden'));
     document.getElementById(sec+'-section').classList.remove('hidden');
+}
+
+// ═══════════════════════════════════════════════════════════
+// 7b. HOME PANEL — ring chart, streak, activity bars
+// ═══════════════════════════════════════════════════════════
+
+function drawRing(canvas, pct, color) {
+    const ctx = canvas.getContext('2d');
+    const cx = canvas.width / 2, cy = canvas.height / 2, r = cx - 8;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 10; ctx.stroke();
+    if (pct > 0) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (pct / 100) * Math.PI * 2);
+        ctx.strokeStyle = color || '#3b82f6'; ctx.lineWidth = 10; ctx.lineCap = 'round'; ctx.stroke();
+    }
+}
+
+function animateRing(canvas, targetPct, color) {
+    if (!canvas) return;
+    const duration = 900, start = performance.now();
+    (function frame(now) {
+        const p = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        drawRing(canvas, targetPct * eased, color);
+        if (p < 1) requestAnimationFrame(frame);
+    })(start);
+}
+
+function renderStreakDots(weekDates, filledSet, todayStr) {
+    const row = document.getElementById('home-streak-row');
+    if (!row) return;
+    const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    row.innerHTML = weekDates.map((d, i) => {
+        const day = dayLabels[new Date(d + 'T00:00:00').getDay()];
+        const isFilled  = filledSet.has(d);
+        const isToday   = d === todayStr;
+        const isFuture  = d > todayStr;
+        let dotClass = 'streak-dot';
+        if (isFilled) dotClass += ' filled';
+        else if (!isFuture && !isToday) dotClass += ' missed';
+        if (isToday) dotClass += ' today';
+        return `<div class="streak-day-wrap" style="animation-delay:${i * 50}ms">
+            <div class="${dotClass}"></div>
+            <div class="streak-dot-label">${day}</div>
+        </div>`;
+    }).join('');
+}
+
+async function loadHomePanel(weekOffset) {
+    if (!currentUser || isSuperAdmin()) return;
+    const today = localDateStr();
+    const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    // Build full week dates (Sun–Sat) INCLUDING today (not capped at yesterday like leaderboard)
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const ws = new Date(now); ws.setDate(now.getDate() - dayOfWeek - ((weekOffset ?? 0) * 7)); ws.setHours(0,0,0,0);
+    const we = new Date(ws); we.setDate(ws.getDate() + 6);
+    // For current week, cap at today (not yesterday)
+    if ((weekOffset ?? 0) === 0 && we > now) we.setTime(now.getTime());
+    const dates = [];
+    const cur = new Date(ws);
+    while (cur <= we) { dates.push(toStr(cur)); cur.setDate(cur.getDate() + 1); }
+    if (!dates.length) return;
+
+    // Also fetch 7 extra days before the week for accurate streak calculation
+    const streakExtra = [];
+    const se = new Date(ws); se.setDate(se.getDate() - 1);
+    for (let i = 0; i < 7; i++) { streakExtra.push(toStr(se)); se.setDate(se.getDate() - 1); }
+    const allFetchDates = [...dates, ...streakExtra];
+
+    const snaps = await Promise.all(
+        allFetchDates.map(d => db.collection('users').doc(currentUser.uid)
+            .collection('sadhana').doc(d).get())
+    );
+    const filledSet = new Set();
+    let totalScore = 0, dayCount = 0;
+    const actTotals = { sleep: 0, wakeup: 0, chanting: 0, reading: 0, hearing: 0, service: 0, notes: 0 };
+    const actMax    = { sleep: 25, wakeup: 25, chanting: 25, reading: 25, hearing: 25, service: 25, notes: 15 };
+
+    snaps.forEach((snap, i) => {
+        if (snap.exists) {
+            const d = snap.data();
+            if ((d.totalScore ?? 0) > 0 || d.sleepTime) {
+                filledSet.add(allFetchDates[i]);
+                // Only count this week's dates for the stats
+                if (i < dates.length) {
+                    dayCount++;
+                    totalScore += d.totalScore ?? 0;
+                    const sc = d.scores || {};
+                    actTotals.sleep    += sc.sleep    ?? 0;
+                    actTotals.wakeup   += sc.wakeup   ?? 0;
+                    actTotals.chanting += sc.chanting ?? 0;
+                    actTotals.reading  += sc.reading  ?? 0;
+                    actTotals.hearing  += sc.hearing  ?? 0;
+                    actTotals.service  += sc.service  ?? 0;
+                    actTotals.notes    += sc.notes    ?? 0;
+                }
+            }
+        }
+    });
+
+    // Fair percentage: divide by days actually filled, not total days in range
+    const weekPct = dayCount > 0 ? Math.round(totalScore * 100 / (dayCount * 160)) : 0;
+
+    // Ring
+    const canvas = document.getElementById('home-ring-canvas');
+    const pctColor = weekPct >= 70 ? '#059669' : weekPct >= 50 ? '#d97706' : '#dc2626';
+    animateRing(canvas, weekPct, pctColor);
+    const pctEl = document.getElementById('home-ring-pct');
+    if (pctEl) pctEl.textContent = weekPct + '%';
+
+    // Stats
+    const wpEl = document.getElementById('home-week-pts');
+    if (wpEl) wpEl.textContent = totalScore;
+    const dcEl = document.getElementById('home-days-count');
+    if (dcEl) dcEl.textContent = dayCount;
+
+    // Streak — for current week: count backwards from today/yesterday
+    // For past weeks: count consecutive filled days from end of that week backwards
+    let streak = 0;
+    const checkDate = new Date(
+        (weekOffset ?? 0) === 0
+            ? today + 'T00:00:00'                        // current week: start from today
+            : toStr(we) + 'T00:00:00'                    // past week: start from last day of that week
+    );
+    // If starting day isn't filled, step back one day (only for current week)
+    if ((weekOffset ?? 0) === 0 && !filledSet.has(toStr(checkDate))) {
+        checkDate.setDate(checkDate.getDate() - 1);
+    }
+    while (true) {
+        const ds = toStr(checkDate);
+        if (filledSet.has(ds)) { streak++; checkDate.setDate(checkDate.getDate() - 1); }
+        else break;
+    }
+    const scEl = document.getElementById('home-streak-count');
+    if (scEl) scEl.textContent = streak;
+
+    // Streak dots
+    renderStreakDots(dates, filledSet, today);
+
+    // Fill alert (only for current week)
+    const alertEl = document.getElementById('home-fill-alert');
+    if (alertEl) {
+        const shouldShow = (weekOffset === 0) && !filledSet.has(today);
+        alertEl.classList.toggle('hidden', !shouldShow);
+    }
+
+    // Activity bars
+    const actCard = document.getElementById('home-activity-card');
+    const actBars = document.getElementById('home-activity-bars');
+    if (actCard && actBars && dayCount > 0) {
+        actCard.style.display = '';
+        const labels = { sleep:'🛌 Sleep', wakeup:'⏰ Wake-up', chanting:'📿 Chanting',
+                         reading:'📖 Reading', hearing:'🎧 Hearing', service:'🛠️ Service', notes:'📝 Notes' };
+        actBars.innerHTML = Object.keys(actTotals).map(k => {
+            const maxK = actMax[k] * dayCount;
+            const pct  = maxK > 0 ? Math.min(Math.round(actTotals[k] * 100 / maxK), 100) : 0;
+            return `<div class="act-bar-row">
+                <div class="act-bar-label">${labels[k]}</div>
+                <div class="act-bar-track"><div class="act-bar-fill" style="width:0" data-pct="${pct}"></div></div>
+                <div class="act-bar-val">${pct}%</div>
+            </div>`;
+        }).join('');
+        // Animate bars after render
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            actBars.querySelectorAll('.act-bar-fill').forEach(el =>
+                el.style.width = el.dataset.pct + '%');
+        }));
+    } else if (actCard) {
+        actCard.style.display = dayCount === 0 ? 'none' : '';
+    }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -604,7 +884,13 @@ window.saTab = (section, btn) => {
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
     if (section === 'leaderboard') loadLeaderboard(false);
     if (section === 'tasks')       loadSATasks();
+    // Sync SA bottom nav
+    const saTabMap = { reports: 0, usermgmt: 1, inactive: 2, leaderboard: 3, tasks: 4 };
+    document.querySelectorAll('#sa-bottom-nav .bnav-item').forEach((b, i) =>
+        b.classList.toggle('active', i === (saTabMap[section] ?? -1)));
 };
+
+window.saBnavTab = (section) => saTab(section, null);
 
 // Level filter buttons
 window.saLvlFilter = (panel, level, btn) => {
@@ -725,16 +1011,17 @@ window.uacRemove = async () => {
 // ═══════════════════════════════════════════════════════════
 const APP_START = '2026-02-12';
 
-function fairDenominator(sunStr, weekData) {
+function fairDenominator(sunStr, weekData, joinedDate) {
     const today = localDateStr(0);
     let days = 0;
     for (let i = 0; i < 7; i++) {
         const d = new Date(sunStr); d.setDate(d.getDate() + i);
         const ds = d.toISOString().split('T')[0];
         if (ds < APP_START) continue;
+        if (joinedDate && ds < joinedDate) continue; // skip pre-join days
         if (ds > today) break;
         if (ds === today) {
-            const submitted = weekData && weekData.find(e => e.id === ds && e.sleepTime !== 'NR');
+            const submitted = weekData && weekData.find(e => e.id === ds && e.sleepTime !== 'NR' && e.sleepTime !== '—');
             if (!submitted) break;
         }
         days++;
@@ -762,11 +1049,17 @@ function loadReports(userId, containerId) {
             });
             weeksList.forEach(wi => {
                 const wk = weeks[wi.label];
+                const _jd = userProfile?.joinedDate || APP_START;
                 let curr = new Date(wi.sunStr);
                 for (let i=0;i<7;i++) {
                     const ds = curr.toISOString().split('T')[0];
                     if (ds>=APP_START && isPastDate(ds) && !wk.data.find(e=>e.id===ds)) {
-                        const nr=getNRData(ds); wk.data.push(nr); wk.total+=nr.totalScore;
+                        if (ds < _jd) {
+                            // Before user joined — show dash, no penalty
+                            wk.data.push(getPreJoinData(ds));
+                        } else {
+                            const nr=getNRData(ds); wk.data.push(nr); wk.total+=nr.totalScore;
+                        }
                     }
                     curr.setDate(curr.getDate()+1);
                 }
@@ -774,7 +1067,7 @@ function loadReports(userId, containerId) {
             container.innerHTML = '';
             weeksList.forEach(wi => {
                 const wk     = weeks[wi.label];
-                const wkFD   = fairDenominator(wi.sunStr, wk.data);
+                const wkFD   = fairDenominator(wi.sunStr, wk.data, userProfile?.joinedDate);
                 const wkPct  = Math.round((wk.total / wkFD) * 100);
                 const wkColor = wk.total < 0 ? '#dc2626' : wkPct < 30 ? '#d97706' : '#16a34a';
                 const div    = document.createElement('div'); div.className='week-card';
@@ -795,6 +1088,15 @@ function loadReports(userId, containerId) {
                 const totalVal = (v) => v < 0 ? `(${v})` : `${v}`;
                 const hasActionCol = isAnyAdmin() && userId !== currentUser.uid;
                 const rowsHtml = wk.data.sort((a,b)=>b.id.localeCompare(a.id)).map((e, ri) => {
+                    // Pre-join day — show grey dash row, no scores
+                    if (e.preJoin) {
+                        const colSpan = hasActionCol ? 15 : 14;
+                        return `<tr style="background:#f9fafb;color:#c0c5cc;">
+                            <td></td>
+                            <td style="font-weight:600;color:#b0b5bc;">${e.id.split('-').slice(1).reverse().join('/')}</td>
+                            <td colspan="${colSpan - 2}" style="text-align:center;font-size:12px;font-style:italic;color:#b0b5bc;">— Not yet joined —</td>
+                        </tr>`;
+                    }
                     const isNR     = e.sleepTime === 'NR';
                     const stripeBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc';
                     const rowBg    = e.rejected ? '#fef2f2' : isNR ? '#fff5f5' : stripeBg;
@@ -991,7 +1293,7 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
     e.preventDefault();
     const date  = document.getElementById('sadhana-date').value;
     const existing = await db.collection('users').doc(currentUser.uid).collection('sadhana').doc(date).get();
-    if (existing.exists) { alert(`❌ Sadhana for ${date} already submitted! Contact admin for corrections.`); return; }
+    if (existing.exists) { alert(`❌ Sadhna for ${date} already submitted! Contact admin for corrections.`); return; }
     const level = userProfile.level || 'Senior Batch';
     let slp     = document.getElementById('sleep-time').value;
     const wak   = document.getElementById('wakeup-time').value;
@@ -1019,9 +1321,33 @@ document.getElementById('sadhana-form').onsubmit = async (e) => {
         levelAtSubmission:level,
         submittedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-    alert(`✅ Submitted! Score: ${total} (${dayPercent}%)`);
-    switchTab('reports');
+    showSubmitSuccess(total, dayPercent);
 };
+
+function showSubmitSuccess(score, pct) {
+    const overlay = document.getElementById('submit-success-overlay');
+    if (!overlay) { switchTab('mysadhana'); switchSadhanaTab('reports'); return; }
+    document.getElementById('ss-score').textContent = score;
+    document.getElementById('ss-pct').textContent   = pct + '%';
+    const msgs = [
+        'Jai Shri Krishna! Keep up the devotion. 🌸',
+        'Wonderful! Every sadhna brings you closer. 🙏',
+        'Hare Krishna! Your efforts are counted. 🌺',
+        'Well done! Guru is pleased with your practice. ✨',
+        'Beautiful! Consistency is the key to progress. 🪷'
+    ];
+    document.getElementById('ss-msg').textContent = msgs[Math.floor(Math.random() * msgs.length)];
+    const bar = document.getElementById('ss-bar');
+    bar.style.width = '0';
+    overlay.classList.add('visible');
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = Math.min(pct, 100) + '%'; }));
+    setTimeout(() => {
+        overlay.classList.remove('visible');
+        bar.style.width = '0';
+        switchTab('mysadhana');
+        switchSadhanaTab('reports');
+    }, 2800);
+}
 
 // ═══════════════════════════════════════════════════════════
 // 12. ADMIN PANEL
@@ -1041,13 +1367,12 @@ window.openAdminDrawer = () => {
     document.getElementById('admin-drawer').classList.add('open');
     document.getElementById('admin-drawer-overlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    ['sadhana-panel','reports-panel','progress-panel'].forEach(id => {
+    ['home-panel','mysadhana-panel','team-panel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('active');
     });
     const ap = document.getElementById('admin-panel');
     if (ap) ap.classList.add('active');
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.admin-sub-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const defaultPanel = document.getElementById('admin-sub-reports');
     if (defaultPanel) { defaultPanel.classList.remove('hidden'); defaultPanel.classList.add('active'); }
@@ -1066,12 +1391,17 @@ window.closeAdminDrawer = () => {
 window.selectAdminSection = (section, btn) => {
     document.querySelectorAll('.drawer-nav-item').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
+    // Sync admin-sub-nav for category admin context
+    const subNavMap = { reports: 0, usermgmt: 1, inactive: 2, leaderboard: 3 };
+    document.querySelectorAll('#admin-sub-nav .subtab-btn').forEach((b, i) =>
+        b.classList.toggle('active', i === (subNavMap[section] ?? -1)));
     document.querySelectorAll('.admin-sub-panel').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); });
     const panel = document.getElementById('admin-sub-' + section);
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
     closeAdminDrawer();
     if (section === 'leaderboard') loadLeaderboard(false);
     if (section === 'tasks')       loadSATasks();
+    if (section === 'reports' && !adminPanelLoaded) { adminPanelLoaded = true; loadAdminPanel(); }
 };
 
 window.filterAdminUsers = () => {
@@ -1174,19 +1504,20 @@ async function loadAdminPanel() {
             <td class="comp-td comp-name" onclick="openAdminCmpUser(${cmpIdx})" style="cursor:pointer;" title="View ${(u.name||'').replace(/"/g,'&quot;')}">${u.name}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>
             <td class="comp-td comp-meta">${u.chantingCategory||'N/A'}</td>`;
+        const uJd2 = u.joinedDate || APP_START;
         weeks.forEach(w => {
             let tot=0; let curr=new Date(w.sunStr);
             const weekEnts=[];
             const todayComp = localDateStr(0);
             for (let i=0;i<7;i++) {
                 const ds=curr.toISOString().split('T')[0];
-                if (ds < APP_START || ds > todayComp) { curr.setDate(curr.getDate()+1); continue; }
+                if (ds < APP_START || ds > todayComp || ds < uJd2) { curr.setDate(curr.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
                 else if (ds < todayComp) { tot += -35; }
                 curr.setDate(curr.getDate()+1);
             }
-            const fd = fairDenominator(w.sunStr, weekEnts);
+            const fd = fairDenominator(w.sunStr, weekEnts, uJd2);
             const pct = Math.round((tot/fd)*100);
             const ps  = pctStyle(pct);
             const cellBg = ps.bg || stripeBg;
@@ -1328,7 +1659,7 @@ window.openEditModal = async (userId, date) => {
     document.getElementById('edit-day-sleep-mins').value  = d.daySleepMinutes || 0;
     document.getElementById('edit-reason').value          = '';
     const uData = uSnap.exists ? uSnap.data() : {};
-    document.getElementById('edit-modal-title').textContent = `✏️ Edit Sadhana — ${uData.name||userId} · ${date}`;
+    document.getElementById('edit-modal-title').textContent = `✏️ Edit Sadhna — ${uData.name||userId} · ${date}`;
     document.getElementById('edit-notes-row').classList.toggle('hidden', uLevel !== 'Senior Batch');
     updateEditPreview();
     document.getElementById('edit-sadhana-modal').classList.remove('hidden');
@@ -1396,7 +1727,7 @@ window.submitEditSadhana = async () => {
         }, { merge: true });
         await docRef.set({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) }, { merge: true });
         closeEditModal();
-        alert(`✅ Sadhana updated!\nNew Score: ${total} (${dayPercent}%)`);
+        alert(`✅ Sadhna updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
         console.error('Edit save error:', err);
         alert('❌ Save failed: ' + err.message);
@@ -1591,6 +1922,8 @@ document.getElementById('profile-form').onsubmit = async (e) => {
         role:             userProfile?.role || 'user'
     };
     if (window._profilePicDataUrl) data.photoURL = window._profilePicDataUrl;
+    // Preserve or set joinedDate
+    if (!userProfile?.joinedDate) data.joinedDate = localDateStr(0);
     await db.collection('users').doc(currentUser.uid).set(data, { merge:true });
     alert('✅ Profile saved!');
     location.reload();
@@ -1624,23 +1957,38 @@ window.submitPasswordChange = async () => {
         closePasswordModal();
         alert('✅ Password changed successfully!');
     } catch (err) {
-        if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-            alert('❌ Current password is incorrect. Please try again.');
-        } else {
-            alert('❌ Failed: ' + err.message);
-        }
+        alert('❌ ' + friendlyAuthError(err));
     }
 };
 
 // ═══════════════════════════════════════════════════════════
 // 16. MISC BINDINGS
 // ═══════════════════════════════════════════════════════════
+function friendlyAuthError(err) {
+    const map = {
+        'auth/invalid-email':            'The email address is not valid. Please check and try again.',
+        'auth/user-disabled':            'This account has been disabled. Please contact your coordinator.',
+        'auth/user-not-found':           'No account found with this email. Please check the email or sign up first.',
+        'auth/wrong-password':           'Incorrect password. Please try again.',
+        'auth/invalid-credential':       'Incorrect email or password. Please check and try again.',
+        'auth/email-already-in-use':     'An account with this email already exists. Try logging in instead.',
+        'auth/weak-password':            'Password is too weak. Please use at least 6 characters.',
+        'auth/too-many-requests':        'Too many failed attempts. Please wait a few minutes and try again.',
+        'auth/network-request-failed':   'No internet connection. Please check your network and try again.',
+        'auth/requires-recent-login':    'For security, please log out and log back in before trying this.',
+        'auth/operation-not-allowed':    'This sign-in method is not enabled. Please contact support.',
+        'auth/invalid-action-code':      'This link has expired or already been used. Please request a new one.',
+        'auth/expired-action-code':      'This link has expired. Please request a new password reset link.',
+    };
+    return map[err.code] || 'Something went wrong. Please try again later.';
+}
+
 document.getElementById('login-form').onsubmit = (e) => {
     e.preventDefault();
     auth.signInWithEmailAndPassword(
         document.getElementById('login-email').value,
         document.getElementById('login-password').value
-    ).catch(err => alert(err.message));
+    ).catch(err => alert('❌ ' + friendlyAuthError(err)));
 };
 
 document.getElementById('logout-btn').onclick = () => auth.signOut();
@@ -1689,11 +2037,7 @@ window.openForgotPassword = (e) => {
     if (confirm(`Send password reset email to: ${email}?`)) {
         auth.sendPasswordResetEmail(email)
             .then(() => alert(`✅ Password reset email sent to ${email}!\n\nCheck your inbox and spam folder.`))
-            .catch(error => {
-                if (error.code==='auth/user-not-found') alert('❌ No account found with this email address!');
-                else if (error.code==='auth/invalid-email') alert('❌ Invalid email format!');
-                else alert('❌ Error: ' + error.message);
-            });
+            .catch(error => alert('❌ ' + friendlyAuthError(error)));
     }
 };
 
@@ -1790,7 +2134,7 @@ async function loadUserNotifications() {
 }
 
 async function checkSadhanaReminder() {
-    if (!currentUser) return;
+    if (!currentUser || isSuperAdmin()) return;
     try {
         const today = localDateStr(0);
         const yesterday = localDateStr(1);
@@ -1800,9 +2144,9 @@ async function checkSadhanaReminder() {
         const submitted = new Set(snap.docs.map(d => d.id));
         const missedDays = [yesterday, dayBefore].filter(d => !submitted.has(d) && d >= APP_START);
         if (missedDays.length >= 2 && Notification.permission === 'granted') {
-            new Notification('🙏 Sadhana Reminder', { body: `You haven't filled Sadhana for ${missedDays.length} days. Please submit now.`, icon: '' });
+            new Notification('🙏 Sadhna Reminder', { body: `You haven't filled Sadhna for ${missedDays.length} days. Please submit now.`, icon: '' });
         }
-        if (missedDays.length >= 2) showToast(`⚠️ Sadhana pending for ${missedDays.length} days — please fill now!`, 'warn');
+        if (missedDays.length >= 2) showToast(`⚠️ Sadhna pending for ${missedDays.length} days — please fill now!`, 'warn');
     } catch (err) { console.warn('Reminder check failed:', err); }
 }
 
@@ -1819,11 +2163,7 @@ window._sendRoleNotification = async (userId, userName, newRole, category) => {
 window._initNotifications = () => {
     loadUserNotifications();
     checkSadhanaReminder();
-    // SuperAdmin gear btn stays hidden (handled in initDashboard)
-    if (!isSuperAdmin()) {
-        const adminBtn = document.getElementById('admin-menu-btn');
-        if (adminBtn && isAnyAdmin()) adminBtn.classList.remove('hidden');
-    }
+    // Admin gear btn removed — navigation now uses bottom nav
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -1894,9 +2234,8 @@ function initPerfDropdowns() {
         yearHtml += `<option value="${y}">${y}</option>`;
     }
 
-    // Default: last complete month
-    let defYear = curYear, defMon = curMon - 1;
-    if (defMon < 0) { defMon = 11; defYear--; }
+    // Default: current month (1st–30/31st cycle)
+    let defYear = curYear, defMon = curMon;
 
     // Populate both user-WCR and SA year dropdowns
     ['perf-year-sel', 'sa-perf-year-sel'].forEach(id => {
@@ -1917,7 +2256,7 @@ function initPerfDropdowns() {
 
 function populateMonthDropdown(selYear, curYear, curMon) {
     const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const maxMon  = (selYear === curYear) ? curMon - 1 : 11;
+    const maxMon  = (selYear === curYear) ? curMon : 11; // include current month
     const startMon = selYear === parseInt(APP_START.split('-')[0]) ? parseInt(APP_START.split('-')[1])-1 : 0;
     let html = '';
     for (let m = startMon; m <= Math.max(maxMon, 0); m++) {
@@ -1943,12 +2282,13 @@ function populateWeekDropdown() {
         const sat = new Date(sunStr); sat.setDate(sat.getDate()+6);
         html += `<option value="${i}">${fmt(sun)} – ${fmt(sat)}</option>`;
     });
-    const defVal = Math.max(weeks.length - 1, 0);
+    // Default to previous week (current week is incomplete, so prev week is more meaningful)
+    const defVal = Math.max(weeks.length - 2, 0);
     ['perf-week-sel', 'sa-perf-week-sel'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = html; el.value = defVal; }
     });
-    _perfWeekIdx = defVal || 0;
+    _perfWeekIdx = defVal;
 }
 
 window.onPerfYearChange = () => {
@@ -2017,7 +2357,7 @@ function computePerformers(filteredDocs) {
     filteredDocs.forEach(uDoc => {
         const u    = uDoc.data();
         const ents = (window._adminSadhanaCache || new Map()).get(uDoc.id) || [];
-        _perfAllData.push({ id: uDoc.id, name: u.name, level: u.level||'', ents });
+        _perfAllData.push({ id: uDoc.id, name: u.name, level: u.level||'', ents, joinedDate: u.joinedDate || APP_START });
     });
 
     initPerfDropdowns();
@@ -2079,8 +2419,9 @@ function renderPerformersFromCache() {
 
     const scores = [];
 
-    data.forEach(({ name, ents }) => {
+    data.forEach(({ name, ents, joinedDate }) => {
         let pct = 0;
+        const pJd = joinedDate || APP_START;
 
         if (_perfTab === 'weekly') {
             const weekSun = weeks[Math.min(_perfWeekIdx, weeks.length-1)] || weeks[0];
@@ -2089,12 +2430,12 @@ function renderPerformersFromCache() {
             for (let i = 0; i < 7; i++) {
                 const d  = new Date(weekSun); d.setDate(d.getDate() + i);
                 const ds = d.toISOString().split('T')[0];
-                if (ds < APP_START || ds > localDateStr(0)) continue;
+                if (ds < APP_START || ds > localDateStr(0) || ds < pJd) continue;
                 const en = ents.find(e => e.date === ds);
                 if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
                 else    { tot -= 35; }
             }
-            const fd = fairDenominator(weekSun, wEnts);
+            const fd = fairDenominator(weekSun, wEnts, pJd);
             pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
             const bestAct = getBestActivity(ents, weekSun, 7);
             scores.push({ name, pct, bestAct });
@@ -2107,12 +2448,12 @@ function renderPerformersFromCache() {
                 for (let i = 0; i < 7; i++) {
                     const d  = new Date(weekSun); d.setDate(d.getDate() + i);
                     const ds = d.toISOString().split('T')[0];
-                    if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > localDateStr(0)) continue;
+                    if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > localDateStr(0) || ds < pJd) continue;
                     const en = ents.find(e => e.date === ds);
                     if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
                     else    { tot -= 35; }
                 }
-                const fd = fairDenominator(weekSun, wEnts);
+                const fd = fairDenominator(weekSun, wEnts, pJd);
                 if (fd > 160) { sum += Math.round((tot/fd)*100); count++; }
             });
             pct = count > 0 ? Math.round(sum / count) : 0;
@@ -2324,7 +2665,7 @@ window.loadLeaderboard = async (force) => {
     const saLabel   = document.getElementById('sa-lb-date-label');
 
     if (userCont && !isSuperAdmin()) containers.push({ cont: userCont, label: userLabel });
-    if (saCont   && isSuperAdmin())  containers.push({ cont: saCont,   label: saLabel   });
+    if (saCont   && isAnyAdmin())    containers.push({ cont: saCont,   label: saLabel   });
     if (!containers.length) { _lbLoading = false; return; }
     containers.forEach(({ cont }) => { cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>'; });
 
@@ -2400,6 +2741,15 @@ window.loadLeaderboard = async (force) => {
         rows.sort((a, b) => b.score - a.score);
         const MEDALS = ['🥇','🥈','🥉'];
 
+        // Cache user data for UAC clicks from leaderboard
+        const _lbUserCache = {};
+        filtered.forEach(uDoc => {
+            const u = uDoc.data();
+            const lvl = (u.level||'').replace(' Coordinator','').replace('Senior Batch','SB');
+            _lbUserCache[uDoc.id] = { name: u.name||'—', level: lvl, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user' };
+        });
+        window._lbUserCache = _lbUserCache;
+
         // SA category filter bar
         const filterBar = isSuperAdmin() ? `
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
@@ -2416,7 +2766,8 @@ window.loadLeaderboard = async (force) => {
                 const scoreColor = r.score >= (isWeekly ? 500 : 100) ? '#15803d' : r.score >= (isWeekly ? 300 : 60) ? '#d97706' : '#dc2626';
                 const medal      = i < 3 ? MEDALS[i] : `<span style="font-size:13px;font-weight:700;color:#9ca3af;">#${i+1}</span>`;
                 const subLine    = r.days !== null ? `avg ${r.pct}% · ${r.days}d` : `${r.pct}%`;
-                return `<div class="lb-row${isSelf ? ' lb-self' : ''}">
+                const clickAttr  = isAnyAdmin() ? ` onclick="lbRowClick('${r.uid}')" style="cursor:pointer;"` : '';
+                return `<div class="lb-row${isSelf ? ' lb-self' : ''}"${clickAttr}>
                     <div class="lb-rank">${medal}</div>
                     ${avatarHtml(r.photo, r.name, 34)}
                     <div class="lb-name">${r.name}<span style="font-size:10px;color:#9ca3af;margin-left:5px;">${r.level}</span></div>
@@ -2426,6 +2777,45 @@ window.loadLeaderboard = async (force) => {
                     </div>
                 </div>`;
             }).join('');
+
+        // Podium for top 3 — both user and SA leaderboard
+        ['lb-podium', 'sa-lb-podium'].forEach(podiumId => {
+            const podiumEl = document.getElementById(podiumId);
+            if (!podiumEl) return;
+            if (rows.length < 2) { podiumEl.style.display = 'none'; return; }
+            const top3 = rows.slice(0, Math.min(3, rows.length));
+            const badges = ['','🥇','🥈','🥉'];
+            // Visual order: 2nd | 1st (center, tallest) | 3rd
+            const order = top3.length === 2
+                ? [{ p: top3[1], rank: 2 }, { p: top3[0], rank: 1 }]
+                : [{ p: top3[1], rank: 2 }, { p: top3[0], rank: 1 }, { p: top3[2], rank: 3 }];
+            // Staggered reveal: 3rd → pause → 2nd → pause → 1st (dramatic buildup)
+            const delays = order.length === 2 ? [0.4, 1.2] : [0.4, 1.6, 1.0];
+            podiumEl.style.display = 'flex';
+            podiumEl.innerHTML = order.map(({ p, rank }, di) => {
+                const initials = (p.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+                const avatarInner = p.photo
+                    ? `<img src="${p.photo}" alt="" onerror="this.outerHTML='${initials}'">`
+                    : initials;
+                return `<div class="lb-podium-item rank${rank} reveal" style="animation-delay:${delays[di]}s;">
+                    <div class="lb-podium-badge">${badges[rank]}</div>
+                    <div class="lb-podium-avatar rank${rank}">${avatarInner}</div>
+                    <div class="lb-podium-name">${p.name}</div>
+                    <div class="lb-podium-score">${p.score} pts</div>
+                </div>`;
+            }).join('');
+            // Party popper for 1st place reveal
+            const wrap = podiumEl.closest('.lb-podium-wrap');
+            if (wrap) {
+                const old = wrap.querySelector('.lb-confetti');
+                if (old) old.remove();
+                const confetti = document.createElement('div');
+                confetti.className = 'lb-confetti';
+                confetti.textContent = '🎉';
+                wrap.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 4000);
+            }
+        });
 
         containers.forEach(({ cont, label }) => {
             if (label) label.textContent = `${dateDisp} · ${rows.length} submitted`;
@@ -2440,6 +2830,22 @@ window.loadLeaderboard = async (force) => {
 // ═══════════════════════════════════════════════════════════
 // 23. TASKS
 // ═══════════════════════════════════════════════════════════
+
+// Open UAC from leaderboard row click
+window.lbRowClick = (uid) => {
+    const c = window._lbUserCache && window._lbUserCache[uid];
+    if (!c) return;
+    openUAC(uid, c.name, c.level, c.chanting, c.rounds, c.role);
+};
+
+// Scroll to tasks section (from header bell)
+window.scrollToTasks = () => {
+    switchTab('home');
+    setTimeout(() => {
+        const el = document.getElementById('tasks-container');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+};
 
 // Regular user view — loads tasks applicable to their category
 window.loadTasks = async () => {
@@ -2462,24 +2868,34 @@ window.loadTasks = async () => {
     }
 };
 
-// SA view — loads all tasks with delete button
+// SA view — loads all tasks with delete button + completion status
 window.loadSATasks = async () => {
     const cont = document.getElementById('sa-tasks-container');
     if (!cont) return;
     cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Loading…</p>';
     try {
-        const snap  = await db.collection('tasks').orderBy('createdAt', 'desc').get();
-        if (snap.empty) {
+        // Fetch tasks + all users in parallel
+        const [taskSnap, usersSnap] = await Promise.all([
+            db.collection('tasks').orderBy('createdAt', 'desc').get(),
+            db.collection('users').get()
+        ]);
+        if (taskSnap.empty) {
             cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:24px;">No tasks posted yet.</p>';
             return;
         }
-        cont.innerHTML = snap.docs.map(d => buildTaskCard({ id: d.id, ...d.data() }, true)).join('');
+        // Build user map {uid: {name, level}}
+        const allUsers = {};
+        usersSnap.forEach(d => {
+            const u = d.data();
+            if (u.role !== 'superAdmin') allUsers[d.id] = { name: u.name || d.id, level: u.level || '' };
+        });
+        cont.innerHTML = taskSnap.docs.map(d => buildTaskCard({ id: d.id, ...d.data() }, true, allUsers)).join('');
     } catch (e) {
         cont.innerHTML = '<p style="color:#dc2626;text-align:center;padding:20px;">Error loading tasks.</p>';
     }
 };
 
-function buildTaskCard(t, showDelete) {
+function buildTaskCard(t, showDelete, allUsers) {
     const catLabel = t.targetCategory === 'all' ? '📢 All' : t.targetCategory;
     const dateStr  = t.createdAt ? new Date(t.createdAt.toDate ? t.createdAt.toDate() : t.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '';
     const linkHtml = t.attachmentUrl
@@ -2488,6 +2904,47 @@ function buildTaskCard(t, showDelete) {
     const delBtn = showDelete
         ? `<button class="task-del-btn" onclick="deleteTask('${t.id}')" title="Delete task">🗑</button>`
         : '';
+    const completedBy = t.completedBy || [];
+    const isDone = currentUser && completedBy.includes(currentUser.uid);
+
+    // Done button for regular users
+    const doneBtn = (!showDelete && currentUser)
+        ? `<button class="task-done-btn${isDone ? ' completed' : ''}" id="done-${t.id}"
+            onclick="markTaskDone('${t.id}')" ${isDone ? 'disabled' : ''}>
+            ${isDone ? '✅ Done' : '☐ Mark Done'}
+           </button>`
+        : '';
+
+    // SA: full completion status with names
+    let statusHtml = '';
+    if (showDelete && allUsers) {
+        const targetUsers = Object.entries(allUsers)
+            .filter(([, u]) => t.targetCategory === 'all' || u.level === t.targetCategory)
+            .map(([uid, u]) => ({ uid, name: u.name }));
+        const doneSet = new Set(completedBy);
+        const doneUsers = targetUsers.filter(u => doneSet.has(u.uid));
+        const pendingUsers = targetUsers.filter(u => !doneSet.has(u.uid));
+        const total = targetUsers.length;
+        const doneCount = doneUsers.length;
+        const pendingCount = pendingUsers.length;
+        const pct = total > 0 ? Math.round(doneCount * 100 / total) : 0;
+        const pColor = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+
+        const doneList = doneUsers.map(u => `<div class="task-user-row"><span class="tud">✅</span> ${u.name}</div>`).join('');
+        const pendList = pendingUsers.map(u => `<div class="task-user-row"><span class="tup">⬜</span> ${u.name}</div>`).join('');
+
+        statusHtml = `<div class="task-status-section">
+            <button class="task-status-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
+                <span style="color:${pColor};font-weight:800;">${doneCount}/${total}</span> completed (${pct}%) · <span style="color:var(--danger);">${pendingCount} pending</span> ▾
+            </button>
+            <div class="task-status-detail">
+                ${pendingCount > 0 ? `<div style="font-size:11px;font-weight:700;color:var(--danger);margin:6px 0 4px;">⬜ Pending (${pendingCount})</div>${pendList}
+                <button class="task-remind-btn" onclick="remindPendingTask('${t.id}','${t.title.replace(/'/g,"\\'")}')">🔔 Send Reminder to Pending</button>` : ''}
+                ${doneCount > 0 ? `<div style="font-size:11px;font-weight:700;color:var(--success);margin:8px 0 4px;">✅ Completed (${doneCount})</div>${doneList}` : ''}
+            </div>
+        </div>`;
+    }
+
     return `<div class="task-card">
         ${delBtn}
         <div class="task-title">${t.title || '(No title)'}</div>
@@ -2497,8 +2954,25 @@ function buildTaskCard(t, showDelete) {
             <span class="task-cat-badge">${catLabel}</span>
             Posted by ${t.createdByName || 'Admin'} · ${dateStr}
         </div>
+        ${statusHtml}
+        <div style="margin-top:8px;">${doneBtn}</div>
     </div>`;
 }
+
+window.markTaskDone = async (taskId) => {
+    if (!currentUser) return;
+    const btn = document.getElementById('done-' + taskId);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳…'; }
+    try {
+        await db.collection('tasks').doc(taskId).update({
+            completedBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+        });
+        if (btn) { btn.classList.add('completed'); btn.textContent = '✅ Done'; }
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '☐ Mark Done'; }
+        alert('Failed to mark task: ' + e.message);
+    }
+};
 
 window.postTask = async () => {
     if (!isSuperAdmin()) return;
@@ -2524,6 +2998,43 @@ window.postTask = async () => {
         alert('✅ Task posted!');
     } catch (e) {
         alert('❌ Failed to post task: ' + e.message);
+    }
+};
+
+window.remindPendingTask = async (taskId, taskTitle) => {
+    if (!isSuperAdmin()) return;
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = '⏳ Sending…';
+    try {
+        const taskDoc = await db.collection('tasks').doc(taskId).get();
+        if (!taskDoc.exists) { alert('Task not found.'); return; }
+        const t = taskDoc.data();
+        const completedBy = new Set(t.completedBy || []);
+        const usersSnap = await db.collection('users').get();
+        const pending = [];
+        usersSnap.forEach(d => {
+            const u = d.data();
+            if (u.role === 'superAdmin') return;
+            if (t.targetCategory !== 'all' && u.level !== t.targetCategory) return;
+            if (!completedBy.has(d.id)) pending.push(d.id);
+        });
+        const batch = db.batch();
+        pending.forEach(uid => {
+            const ref = db.collection('notifications').doc();
+            batch.set(ref, {
+                userId: uid,
+                title: '🔔 Task Reminder',
+                body: `Please complete: "${taskTitle}"`,
+                read: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        await batch.commit();
+        btn.textContent = `✅ Sent to ${pending.length}`;
+        setTimeout(() => { btn.disabled = false; btn.textContent = '🔔 Send Reminder to Pending'; }, 3000);
+    } catch (e) {
+        btn.disabled = false; btn.textContent = '🔔 Send Reminder to Pending';
+        alert('Failed: ' + e.message);
     }
 };
 
