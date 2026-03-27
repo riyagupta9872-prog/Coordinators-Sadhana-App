@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"d:/riya personal/RAPP/Sadhana Tracker/Sadhana Tracker- Coordinators Position based based/Coordinators-Sadhana-App/\"icon-*.png \"d:/riya personal/RAPP/Sadhana Tracker/Sadhana Tracker- Coordinators Position based based/Coordinators-Sadhana-App/icons/\")"
+    ]
+  }
+}

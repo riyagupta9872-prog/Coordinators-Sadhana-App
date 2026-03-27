@@ -34,6 +34,10 @@ const visibleCategories = () => {
     return [];
 };
 
+// HTML-escape to prevent XSS when inserting user data into innerHTML
+const _escDiv = document.createElement('div');
+function esc(s) { _escDiv.textContent = s || ''; return _escDiv.innerHTML; }
+
 // ═══════════════════════════════════════════════════════════
 // 3. HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -77,12 +81,15 @@ function localDateStr(offsetDays = 0) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function getNRData(date) {
+function getNRData(date, level) {
+    const isSB = level === 'Senior Batch';
+    const notesScore = isSB ? -5 : 0;
+    const total = -30 + notesScore; // sleep(-5)+wake(-5)+chant(-5)+read(-5)+hear(-5)+service(-5) + notes
     return {
-        id: date, totalScore: -35, dayPercent: -22,
+        id: date, totalScore: total, dayPercent: Math.round((total/160)*100),
         sleepTime:'NR', wakeupTime:'NR', chantingTime:'NR',
         readingMinutes:0, hearingMinutes:0, serviceMinutes:0, notesMinutes:0, daySleepMinutes:0,
-        scores:{ sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:-5, daySleep:0 }
+        scores:{ sleep:-5, wakeup:-5, chanting:-5, reading:-5, hearing:-5, service:-5, notes:notesScore, daySleep:0 }
     };
 }
 
@@ -177,6 +184,12 @@ window.downloadUserExcel = async (userId, userName) => {
         const uData = uDoc.exists ? uDoc.data() : {};
         const snap = await db.collection('users').doc(userId).collection('sadhana').get();
         if (snap.empty) { alert('No sadhna data found for this user.'); return; }
+        // Auto-fix joinedDate if wrong
+        const exFirstIds = snap.docs.map(d => d.id).filter(d => d >= APP_START).sort();
+        if (exFirstIds.length && (!uData.joinedDate || uData.joinedDate > exFirstIds[0])) {
+            uData.joinedDate = exFirstIds[0];
+            db.collection('users').doc(userId).set({ joinedDate: exFirstIds[0] }, { merge: true });
+        }
         const weeksData = {};
         snap.forEach(doc => {
             const wi = getWeekInfo(doc.id);
@@ -215,7 +228,7 @@ window.downloadUserExcel = async (userId, userName) => {
                 const ds  = cd.toISOString().split('T')[0];
                 const lbl = `${DAY[i]} ${String(cd.getDate()).padStart(2,'0')}`;
                 const _exJd = uData.joinedDate || APP_START;
-                const e   = (ds < _exJd) ? getPreJoinData(ds) : (week.days[ds] || getNRData(ds));
+                const e   = (ds < _exJd) ? getPreJoinData(ds) : (week.days[ds] || getNRData(ds, uData.level));
                 const dRow = dataArray.length;
                 T.sl+=e.scores?.sleep??0; T.wu+=e.scores?.wakeup??0; T.ch+=e.scores?.chanting??0;
                 T.rd+=e.scores?.reading??0; T.hr+=e.scores?.hearing??0; T.sv+=e.scores?.service??0;
@@ -317,7 +330,13 @@ window.downloadMasterReport = async () => {
             const u = uDoc.data();
             if (!cats.includes(u.level||'Senior Batch')) continue;
             const sSnap = await uDoc.ref.collection('sadhana').get();
-            const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0}));
+            const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
+            // Auto-fix joinedDate if wrong
+            const mFirstIds = sSnap.docs.map(d => d.id).filter(d => d >= APP_START).sort();
+            if (mFirstIds.length && (!u.joinedDate || u.joinedDate > mFirstIds[0])) {
+                u.joinedDate = mFirstIds[0];
+                uDoc.ref.set({ joinedDate: mFirstIds[0] }, { merge: true });
+            }
             entries.forEach(en => { const wi = getWeekInfo(en.date); weekMap.set(wi.sunStr, wi.label); });
             userData.push({ user:u, entries });
         }
@@ -330,13 +349,15 @@ window.downloadMasterReport = async () => {
             allWeeks.forEach(({ sunStr }) => {
                 let tot = 0; const masterWeekEnts = [];
                 const wSun = new Date(sunStr);
+                const todayM = localDateStr(0);
                 for (let i=0;i<7;i++) {
                     const c  = new Date(wSun); c.setDate(c.getDate()+i);
                     const ds = c.toISOString().split('T')[0];
                     if (ds < mJd) continue; // skip pre-join dates
+                    if (ds > todayM) break;  // skip future dates
                     const en = entries.find(e=>e.date===ds);
-                    tot += en ? en.score : -35;
-                    if(en) masterWeekEnts.push({id:ds,sleepTime:en.sleepTime||''});
+                    if (en) { tot += en.score; masterWeekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
+                    else if (ds < todayM) { tot += -35; } // only penalize past dates
                 }
                 const mfd = fairDenominator(wSun, masterWeekEnts, mJd);
                 const pct = Math.round((tot/mfd)*100);
@@ -599,6 +620,18 @@ async function loadUserWCR() {
     // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
     const allSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
 
+    // Auto-fix joinedDate for all users in WCR
+    filtered.forEach((uDoc, idx) => {
+        const u = uDoc.data();
+        const sortedIds = allSnaps[idx].docs.map(d => d.id).filter(d => d >= APP_START).sort();
+        if (sortedIds.length === 0) return;
+        const firstDate = sortedIds[0];
+        if (!u.joinedDate || u.joinedDate > firstDate) {
+            uDoc.ref.set({ joinedDate: firstDate }, { merge: true });
+            u.joinedDate = firstDate;
+        }
+    });
+
     filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
         const sSnap = allSnaps[rowIdx];
@@ -800,7 +833,8 @@ async function loadHomePanel(weekOffset) {
     const filledSet = new Set();
     let totalScore = 0, dayCount = 0;
     const actTotals = { sleep: 0, wakeup: 0, chanting: 0, reading: 0, hearing: 0, service: 0, notes: 0 };
-    const actMax    = { sleep: 25, wakeup: 25, chanting: 25, reading: 25, hearing: 25, service: 25, notes: 15 };
+    const _isSB = userProfile?.level === 'Senior Batch';
+    const actMax    = { sleep: 25, wakeup: 25, chanting: 25, reading: 25, hearing: 25, service: _isSB ? 10 : 25, notes: _isSB ? 15 : 0 };
 
     snaps.forEach((snap, i) => {
         if (snap.exists) {
@@ -1061,6 +1095,25 @@ function loadReports(userId, containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
     if (activeListener) { activeListener(); activeListener = null; }
+
+    // Fetch the VIEWED user's profile (not the logged-in user's)
+    db.collection('users').doc(userId).get().then(userDoc => {
+        const viewedUser = userDoc.exists ? userDoc.data() : {};
+        // Auto-fix joinedDate if wrong
+        if (userDoc.exists) {
+            db.collection('users').doc(userId).collection('sadhana')
+                .orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get()
+                .then(fSnap => {
+                    if (fSnap.empty) return;
+                    const firstDate = fSnap.docs[0].id;
+                    if (!viewedUser.joinedDate || viewedUser.joinedDate > firstDate) {
+                        viewedUser.joinedDate = firstDate;
+                        db.collection('users').doc(userId).set({ joinedDate: firstDate }, { merge: true });
+                    }
+                }).catch(() => {});
+        }
+        const _jd = viewedUser.joinedDate || APP_START;
+
     activeListener = db.collection('users').doc(userId).collection('sadhana')
         .onSnapshot(snap => {
             const weeksList = [];
@@ -1077,16 +1130,14 @@ function loadReports(userId, containerId) {
             });
             weeksList.forEach(wi => {
                 const wk = weeks[wi.label];
-                const _jd = userProfile?.joinedDate || APP_START;
                 let curr = new Date(wi.sunStr);
                 for (let i=0;i<7;i++) {
                     const ds = curr.toISOString().split('T')[0];
                     if (ds>=APP_START && isPastDate(ds) && !wk.data.find(e=>e.id===ds)) {
                         if (ds < _jd) {
-                            // Before user joined — show dash, no penalty
                             wk.data.push(getPreJoinData(ds));
                         } else {
-                            const nr=getNRData(ds); wk.data.push(nr); wk.total+=nr.totalScore;
+                            const nr=getNRData(ds, viewedUser.level); wk.data.push(nr); wk.total+=nr.totalScore;
                         }
                     }
                     curr.setDate(curr.getDate()+1);
@@ -1095,7 +1146,7 @@ function loadReports(userId, containerId) {
             container.innerHTML = '';
             weeksList.forEach(wi => {
                 const wk     = weeks[wi.label];
-                const wkFD   = fairDenominator(wi.sunStr, wk.data, userProfile?.joinedDate);
+                const wkFD   = fairDenominator(wi.sunStr, wk.data, _jd);
                 const wkPct  = Math.round((wk.total / wkFD) * 100);
                 const wkColor = wk.total < 0 ? '#dc2626' : wkPct < 30 ? '#d97706' : '#16a34a';
                 const div    = document.createElement('div'); div.className='week-card';
@@ -1184,6 +1235,7 @@ function loadReports(userId, containerId) {
                 container.appendChild(div);
             });
         }, err => console.error('Snapshot error:', err));
+    }); // end userDoc.get().then
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1504,6 +1556,20 @@ async function loadAdminPanel() {
     // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
     const allAdminSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
 
+    // Auto-fix joinedDate for all users — use their first sadhana entry
+    filtered.forEach((uDoc, idx) => {
+        const u = uDoc.data();
+        const docs = allAdminSnaps[idx].docs;
+        if (docs.length === 0) return;
+        const sortedIds = docs.map(d => d.id).filter(d => d >= APP_START).sort();
+        if (sortedIds.length === 0) return;
+        const firstDate = sortedIds[0];
+        if (!u.joinedDate || u.joinedDate > firstDate) {
+            uDoc.ref.set({ joinedDate: firstDate }, { merge: true });
+            u.joinedDate = firstDate; // fix in-memory too for this render
+        }
+    });
+
     filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
         const sSnap = allAdminSnaps[rowIdx];
@@ -1590,14 +1656,14 @@ async function loadAdminPanel() {
             const lastTxt = u.lastDate
                 ? `Last entry: ${u.lastDate.split('-').slice(1).join(' ')}`
                 : 'No entries yet';
-            const safe = (u.name||'').replace(/'/g,"\\'");
+            const safe = (u.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
             const dot = u.missedDays >= 4 ? '🔴' : u.missedDays === 3 ? '🟠' : '🟡';
             return `<div class="inactive-card">
                 <div class="inactive-card-left">
                     <span class="inactive-dot">${dot}</span>
                     <div>
-                        <div class="inactive-name">${u.name}</div>
-                        <div class="inactive-meta">${u.level||'Senior Batch'} · ${lastTxt} · <strong>${u.missedDays} days missed</strong></div>
+                        <div class="inactive-name">${esc(u.name)}</div>
+                        <div class="inactive-meta">${esc(u.level||'Senior Batch')} · ${lastTxt} · <strong>${u.missedDays} days missed</strong></div>
                     </div>
                 </div>
                 <div class="inactive-actions">
@@ -2782,7 +2848,7 @@ window.loadLeaderboard = async (force) => {
         const _lbUserCache = {};
         filtered.forEach(uDoc => {
             const u = uDoc.data();
-            const lvl = (u.level||'').replace(' Coordinator','').replace('Senior Batch','SB');
+            const lvl = (u.level||'').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
             _lbUserCache[uDoc.id] = { name: u.name||'—', level: lvl, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user' };
         });
         window._lbUserCache = _lbUserCache;
