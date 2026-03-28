@@ -14,7 +14,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
@@ -1665,7 +1665,16 @@
                 <div id="admin-sub-reports" class="admin-sub-panel hidden">
                     <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                         <h3 style="margin:0;color:var(--primary);font-size:15px;">&#128202; 4-Week Performance (%)</h3>
-                        <button onclick="downloadMasterReport()" class="btn-success btn-sm" style="width:auto;padding:8px 18px;">&#11015; Master Excel</button>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button onclick="downloadMasterReport()" class="btn-success btn-sm" style="width:auto;padding:8px 14px;">&#11015; Master</button>
+                            <select id="cat-excel-sel" style="width:auto;padding:6px 10px;font-size:12px;border-radius:8px;border:1px solid #ddd;margin:0;" onchange="if(this.value){downloadCategoryExcel(this.value);this.value='';}">
+                                <option value="">&#11015; Category Excel</option>
+                                <option value="Senior Batch">Senior Batch</option>
+                                <option value="IGF Co-ordinator">IGF</option>
+                                <option value="IYF Co-ordinator">IYF</option>
+                                <option value="ICF Coordinator">ICF</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="sa-lvl-bar" style="display:none;margin-bottom:10px;gap:7px;flex-wrap:wrap;">
                         <button class="sa-lvl-btn active" onclick="saLvlFilter('reports','',this)">All</button>

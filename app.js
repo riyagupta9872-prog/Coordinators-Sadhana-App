@@ -151,19 +151,31 @@ function xlsxSave(wb, filename) {
     }
 }
 
+const BORDER_THIN = { style:'thin', color:{rgb:'CCCCCC'} };
+const BORDER_ALL  = { top:BORDER_THIN, bottom:BORDER_THIN, left:BORDER_THIN, right:BORDER_THIN };
+
 function styleCell(ws, cellRef, opts = {}) {
     if (!ws[cellRef]) ws[cellRef] = { v:'', t:'s' };
     ws[cellRef].s = {
-        font:      { bold: opts.bold||false, color: opts.fontColor ? {rgb: opts.fontColor} : undefined, sz: opts.sz||11 },
+        font:      { bold: opts.bold||false, color: opts.fontColor ? {rgb: opts.fontColor} : undefined, sz: opts.sz||11, name: opts.font||'Calibri' },
         fill:      opts.fill ? { fgColor: {rgb: opts.fill}, patternType:'solid' } : undefined,
-        alignment: { horizontal: opts.align||'center', vertical:'center', wrapText: false },
-        border: {
-            top:    { style:'thin', color:{rgb:'CCCCCC'} },
-            bottom: { style:'thin', color:{rgb:'CCCCCC'} },
-            left:   { style:'thin', color:{rgb:'CCCCCC'} },
-            right:  { style:'thin', color:{rgb:'CCCCCC'} }
-        }
+        alignment: { horizontal: opts.align||'center', vertical:'center', wrapText: opts.wrap||false },
+        border:    opts.noBorder ? undefined : BORDER_ALL,
+        numFmt:    opts.numFmt || undefined
     };
+}
+
+// Style an entire row
+function styleRow(ws, row, cols, opts) {
+    for (let c = 0; c < cols; c++) styleCell(ws, `${colLetter(c)}${row}`, opts);
+}
+
+// Style an entire range
+function styleRange(ws, startRow, endRow, cols, rowStyleFn) {
+    for (let r = startRow; r <= endRow; r++) {
+        const opts = rowStyleFn(r);
+        if (opts) for (let c = 0; c < cols; c++) styleCell(ws, `${colLetter(c)}${r}`, typeof opts === 'function' ? opts(c) : opts);
+    }
 }
 
 function colLetter(n) {
@@ -184,12 +196,6 @@ window.downloadUserExcel = async (userId, userName) => {
         const uData = uDoc.exists ? uDoc.data() : {};
         const snap = await db.collection('users').doc(userId).collection('sadhana').get();
         if (snap.empty) { alert('No sadhna data found for this user.'); return; }
-        // Auto-fix joinedDate if wrong
-        const exFirstIds = snap.docs.map(d => d.id).filter(d => d >= APP_START).sort();
-        if (exFirstIds.length && (!uData.joinedDate || uData.joinedDate > exFirstIds[0])) {
-            uData.joinedDate = exFirstIds[0];
-            db.collection('users').doc(userId).set({ joinedDate: exFirstIds[0] }, { merge: true });
-        }
         const weeksData = {};
         snap.forEach(doc => {
             const wi = getWeekInfo(doc.id);
@@ -331,12 +337,6 @@ window.downloadMasterReport = async () => {
             if (!cats.includes(u.level||'Senior Batch')) continue;
             const sSnap = await uDoc.ref.collection('sadhana').get();
             const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
-            // Auto-fix joinedDate if wrong
-            const mFirstIds = sSnap.docs.map(d => d.id).filter(d => d >= APP_START).sort();
-            if (mFirstIds.length && (!u.joinedDate || u.joinedDate > mFirstIds[0])) {
-                u.joinedDate = mFirstIds[0];
-                uDoc.ref.set({ joinedDate: mFirstIds[0] }, { merge: true });
-            }
             entries.forEach(en => { const wi = getWeekInfo(en.date); weekMap.set(wi.sunStr, wi.label); });
             userData.push({ user:u, entries });
         }
@@ -391,6 +391,140 @@ window.downloadMasterReport = async () => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Master_Report');
         xlsxSave(wb, 'Master_Sadhna_Report.xlsx');
+    } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
+};
+
+// Category-wise Excel: one file per category, each user as a separate sheet
+window.downloadCategoryExcel = async (category) => {
+    if (typeof XLSX === 'undefined') { alert('Excel library not loaded. Please refresh.'); return; }
+    const catLabel = category.replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
+    try {
+        const usersSnap = await db.collection('users').get();
+        const catUsers = usersSnap.docs
+            .filter(d => (d.data().level || 'Senior Batch') === category)
+            .sort((a, b) => (a.data().name || '').localeCompare(b.data().name || ''));
+
+        if (!catUsers.length) { alert('No users found in ' + catLabel); return; }
+
+        const wb = XLSX.utils.book_new();
+        const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+        for (const uDoc of catUsers) {
+            const u = uDoc.data();
+            const sSnap = await uDoc.ref.collection('sadhana').get();
+            if (sSnap.empty) continue;
+
+            const weeksData = {};
+            sSnap.forEach(doc => {
+                if (doc.id < APP_START) return;
+                const d = doc.data(); const wi = getWeekInfo(doc.id);
+                if (!weeksData[wi.label]) weeksData[wi.label] = { sunStr: wi.sunStr, label: wi.label, days: {} };
+                weeksData[wi.label].days[doc.id] = d;
+            });
+
+            const sortedWeeks = Object.keys(weeksData).sort((a, b) => weeksData[b].sunStr.localeCompare(weeksData[a].sunStr));
+            const uJd = u.joinedDate || APP_START;
+            const todayE = localDateStr(0);
+            const rows = [
+                ['Name', u.name || ''], ['Level', u.level || ''], ['Chanting', u.chantingCategory || ''],
+                ['Rounds', u.exactRounds || ''], ['Joined', uJd], ['']
+            ];
+
+            sortedWeeks.forEach(wLabel => {
+                const week = weeksData[wLabel];
+                rows.push([`WEEK: ${wLabel.replace('_',' ')}`]);
+                rows.push(['Date','Bed','M','Wake','M','Chant','M','Read(m)','M','Hear(m)','M','Seva(m)','M','Notes(m)','M','DaySleep(m)','M','Total','%']);
+                let tot = 0;
+                const wStart = new Date(week.sunStr);
+                const weekEnts = [];
+                for (let i = 0; i < 7; i++) {
+                    const cd = new Date(wStart); cd.setDate(cd.getDate() + i);
+                    const ds = cd.toISOString().split('T')[0];
+                    if (ds > todayE) continue;
+                    const lbl = `${DAY[i]} ${String(cd.getDate()).padStart(2,'0')}`;
+                    if (ds < uJd) {
+                        rows.push([lbl, '—','—','—','—','—','—','—','—','—','—','—','—','—','—','—','—','—','Not joined']);
+                        continue;
+                    }
+                    const e = week.days[ds];
+                    if (e) {
+                        const sc = e.scores || {};
+                        tot += e.totalScore || 0;
+                        weekEnts.push({ id: ds, sleepTime: e.sleepTime || '' });
+                        rows.push([lbl, fmt12(e.sleepTime||'NR'), sc.sleep??0, fmt12(e.wakeupTime||'NR'), sc.wakeup??0,
+                            fmt12(e.chantingTime||'NR'), sc.chanting??0, e.readingMinutes||0, sc.reading??0,
+                            e.hearingMinutes||0, sc.hearing??0, e.serviceMinutes||0, sc.service??0,
+                            e.notesMinutes||0, sc.notes??0, e.daySleepMinutes||0, sc.daySleep??0,
+                            e.totalScore||0, (e.dayPercent||0)+'%']);
+                    } else {
+                        tot += -35;
+                        rows.push([lbl, 'NR',-5,'NR',-5,'NR',-5,0,-5,0,-5,0,-5,0,-5,0,0,-35,'-22%']);
+                    }
+                }
+                const fd = fairDenominator(week.sunStr, weekEnts, uJd);
+                const pct = Math.round((tot / fd) * 100);
+                rows.push(['TOTAL','','','','','','','','','','','','','','','','', tot, pct + '%']);
+                rows.push(['']);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const COLS = 19;
+            ws['!cols'] = [{ wch: 12 }, ...Array(COLS - 1).fill({ wch: 10 })];
+
+            // Apply formatting row by row
+            for (let r = 0; r < rows.length; r++) {
+                const rv = rows[r];
+                const rowNum = r + 1;
+                if (r < 5 && rv.length >= 2) {
+                    // Profile rows: label bold, value normal
+                    styleCell(ws, `A${rowNum}`, { bold: true, fill: '1A3C5E', fontColor: 'FFFFFF', align: 'left' });
+                    styleCell(ws, `B${rowNum}`, { align: 'left', fill: 'EEF2F7' });
+                } else if (typeof rv[0] === 'string' && rv[0].startsWith('WEEK:')) {
+                    // Week header row: dark blue fill, white bold text
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { bold: true, fill: '1A3C5E', fontColor: 'FFFFFF', align: 'left', sz: 11 });
+                } else if (rv[0] === 'Date') {
+                    // Column header row: medium blue fill
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { bold: true, fill: '3B82F6', fontColor: 'FFFFFF', sz: 10 });
+                    styleCell(ws, `A${rowNum}`, { bold: true, fill: '3B82F6', fontColor: 'FFFFFF', align: 'left', sz: 10 });
+                } else if (rv[0] === 'TOTAL') {
+                    // Total row: green-tinted bold
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { bold: true, fill: 'DCFCE7', sz: 11 });
+                    styleCell(ws, `A${rowNum}`, { bold: true, fill: 'DCFCE7', align: 'left', sz: 11 });
+                } else if (rv.length >= 3 && rv[1] === 'NR') {
+                    // NR row: red tint
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { fill: 'FFF5F5', fontColor: 'B91C1C' });
+                    styleCell(ws, `A${rowNum}`, { fill: 'FFF5F5', fontColor: 'B91C1C', align: 'left', bold: true });
+                } else if (rv.length >= 3 && rv[1] === '—') {
+                    // Pre-join row: grey
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { fill: 'F3F4F6', fontColor: 'B0B5BC' });
+                    styleCell(ws, `A${rowNum}`, { fill: 'F3F4F6', fontColor: 'B0B5BC', align: 'left' });
+                } else if (rv.length >= COLS) {
+                    // Data row: alternate stripe
+                    const stripe = (r % 2 === 0) ? 'FFFFFF' : 'F8FAFC';
+                    for (let c = 0; c < COLS; c++) styleCell(ws, `${colLetter(c)}${rowNum}`, { fill: stripe });
+                    styleCell(ws, `A${rowNum}`, { fill: stripe, align: 'left', bold: true });
+                    // Color the score columns (negative = red, high = green)
+                    [2,4,6,8,10,12,14,16].forEach(sc => {
+                        const val = rv[sc];
+                        if (typeof val === 'number') {
+                            const fc = val < 0 ? 'DC2626' : val >= 20 ? '15803D' : undefined;
+                            if (fc) styleCell(ws, `${colLetter(sc)}${rowNum}`, { fill: stripe, fontColor: fc, bold: val < 0 });
+                        }
+                    });
+                    // Total column
+                    const totalVal = rv[17];
+                    if (typeof totalVal === 'number') {
+                        const fc = totalVal < 0 ? 'DC2626' : totalVal >= 112 ? '15803D' : undefined;
+                        styleCell(ws, `${colLetter(17)}${rowNum}`, { fill: stripe, bold: true, fontColor: fc || undefined });
+                    }
+                }
+            }
+
+            const sheetName = (u.name || uDoc.id).slice(0, 31);
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        }
+
+        xlsxSave(wb, `Sadhna_${catLabel}_Report.xlsx`);
     } catch (err) { console.error(err); alert('Download Failed: ' + err.message); }
 };
 
@@ -468,18 +602,6 @@ auth.onAuthStateChanged((user) => {
                 document.getElementById('profile-exact-rounds').value   = userProfile.exactRounds || '';
                 showSection('profile');
                 return;
-            }
-            // Auto-fix joinedDate — set from first sadhana entry if missing or wrong
-            if (userProfile.level) {
-                db.collection('users').doc(user.uid).collection('sadhana')
-                    .orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get()
-                    .then(snap => {
-                        if (snap.empty) return;
-                        const firstDate = snap.docs[0].id;
-                        if (!userProfile.joinedDate || userProfile.joinedDate > firstDate) {
-                            db.collection('users').doc(user.uid).set({ joinedDate: firstDate }, { merge: true });
-                        }
-                    }).catch(() => {});
             }
             if (!_dashboardInited) {
                 _dashboardInited = true;
@@ -619,18 +741,6 @@ async function loadUserWCR() {
 
     // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
     const allSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
-
-    // Auto-fix joinedDate for all users in WCR
-    filtered.forEach((uDoc, idx) => {
-        const u = uDoc.data();
-        const sortedIds = allSnaps[idx].docs.map(d => d.id).filter(d => d >= APP_START).sort();
-        if (sortedIds.length === 0) return;
-        const firstDate = sortedIds[0];
-        if (!u.joinedDate || u.joinedDate > firstDate) {
-            uDoc.ref.set({ joinedDate: firstDate }, { merge: true });
-            u.joinedDate = firstDate;
-        }
-    });
 
     filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
@@ -1099,19 +1209,6 @@ function loadReports(userId, containerId) {
     // Fetch the VIEWED user's profile (not the logged-in user's)
     db.collection('users').doc(userId).get().then(userDoc => {
         const viewedUser = userDoc.exists ? userDoc.data() : {};
-        // Auto-fix joinedDate if wrong
-        if (userDoc.exists) {
-            db.collection('users').doc(userId).collection('sadhana')
-                .orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get()
-                .then(fSnap => {
-                    if (fSnap.empty) return;
-                    const firstDate = fSnap.docs[0].id;
-                    if (!viewedUser.joinedDate || viewedUser.joinedDate > firstDate) {
-                        viewedUser.joinedDate = firstDate;
-                        db.collection('users').doc(userId).set({ joinedDate: firstDate }, { merge: true });
-                    }
-                }).catch(() => {});
-        }
         const _jd = viewedUser.joinedDate || APP_START;
 
     activeListener = db.collection('users').doc(userId).collection('sadhana')
@@ -1555,20 +1652,6 @@ async function loadAdminPanel() {
 
     // Fetch all sadhana subcollections in parallel (was sequential — big speed gain)
     const allAdminSnaps = await Promise.all(filtered.map(uDoc => uDoc.ref.collection('sadhana').get()));
-
-    // Auto-fix joinedDate for all users — use their first sadhana entry
-    filtered.forEach((uDoc, idx) => {
-        const u = uDoc.data();
-        const docs = allAdminSnaps[idx].docs;
-        if (docs.length === 0) return;
-        const sortedIds = docs.map(d => d.id).filter(d => d >= APP_START).sort();
-        if (sortedIds.length === 0) return;
-        const firstDate = sortedIds[0];
-        if (!u.joinedDate || u.joinedDate > firstDate) {
-            uDoc.ref.set({ joinedDate: firstDate }, { merge: true });
-            u.joinedDate = firstDate; // fix in-memory too for this render
-        }
-    });
 
     filtered.forEach((uDoc, rowIdx) => {
         const u     = uDoc.data();
@@ -2020,12 +2103,8 @@ document.getElementById('profile-form').onsubmit = async (e) => {
         role:             userProfile?.role || 'user'
     };
     if (window._profilePicDataUrl) data.photoURL = window._profilePicDataUrl;
-    // Preserve or set joinedDate — use first sadhana entry for old users
-    if (!userProfile?.joinedDate) {
-        const firstSnap = await db.collection('users').doc(currentUser.uid)
-            .collection('sadhana').orderBy(firebase.firestore.FieldPath.documentId()).limit(1).get();
-        data.joinedDate = firstSnap.empty ? localDateStr(0) : firstSnap.docs[0].id;
-    }
+    // Preserve existing joinedDate (only set manually via Firestore by Super Admin)
+    if (userProfile?.joinedDate) data.joinedDate = userProfile.joinedDate;
     await db.collection('users').doc(currentUser.uid).set(data, { merge:true });
     alert('✅ Profile saved!');
     location.reload();
@@ -2526,6 +2605,7 @@ function renderPerformersFromCache() {
         let pct = 0;
         const pJd = joinedDate || APP_START;
 
+        const todayP = localDateStr(0);
         if (_perfTab === 'weekly') {
             const weekSun = weeks[Math.min(_perfWeekIdx, weeks.length-1)] || weeks[0];
             if (!weekSun) return;
@@ -2533,10 +2613,10 @@ function renderPerformersFromCache() {
             for (let i = 0; i < 7; i++) {
                 const d  = new Date(weekSun); d.setDate(d.getDate() + i);
                 const ds = d.toISOString().split('T')[0];
-                if (ds < APP_START || ds > localDateStr(0) || ds < pJd) continue;
+                if (ds < APP_START || ds > todayP || ds < pJd) continue;
                 const en = ents.find(e => e.date === ds);
                 if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
-                else    { tot -= 35; }
+                else if (ds < todayP) { tot -= 35; } // only penalize past days
             }
             const fd = fairDenominator(weekSun, wEnts, pJd);
             pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
@@ -2551,10 +2631,10 @@ function renderPerformersFromCache() {
                 for (let i = 0; i < 7; i++) {
                     const d  = new Date(weekSun); d.setDate(d.getDate() + i);
                     const ds = d.toISOString().split('T')[0];
-                    if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > localDateStr(0) || ds < pJd) continue;
+                    if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > todayP || ds < pJd) continue;
                     const en = ents.find(e => e.date === ds);
                     if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
-                    else    { tot -= 35; }
+                    else if (ds < todayP) { tot -= 35; } // only penalize past days
                 }
                 const fd = fairDenominator(weekSun, wEnts, pJd);
                 if (fd > 160) { sum += Math.round((tot/fd)*100); count++; }
