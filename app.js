@@ -550,7 +550,7 @@ function resetAppState() {
     // Leaderboard
     _lbLoading          = false;
     _lbCategoryFilter   = '';
-    _lbMode             = 'daily';
+    _lbMode             = 'current-week';
     _homeWeekOffset     = 0;
     _sSadhanaTab        = 'entry';
     // Activity Analysis
@@ -786,7 +786,90 @@ async function loadUserWCR() {
 
     // Compute performers using this data
     window._adminSadhanaCache = sadhanaCache;
+    // Save data for WCR re-rendering when perf filter changes
+    window._wcrFilteredUsers = filtered.map(uDoc => {
+        const u = uDoc.data();
+        return { uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user', joinedDate: u.joinedDate || APP_START };
+    });
+    window._wcrContainerId = 'user-wcr-container';
     computePerformers(filtered);
+}
+
+// Re-render WCR table for a specific month (called when perf filter changes)
+function rerenderWCRForMonth(year, month) {
+    const users    = window._wcrFilteredUsers;
+    const cache    = window._adminSadhanaCache;
+    const contId   = window._wcrContainerId || 'user-wcr-container';
+    const container = document.getElementById(contId);
+    if (!users || !cache || !container) return;
+
+    // Build weeks for the selected month
+    const monthStart = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const monthEnd   = new Date(year, month+1, 0).toISOString().split('T')[0];
+    const mStart     = new Date(monthStart);
+    const mEnd       = new Date(monthEnd);
+    const weeks = [];
+    const cur = new Date(mStart); cur.setDate(cur.getDate() - cur.getDay()); // go to Sunday
+    while (cur <= mEnd) {
+        const sunStr = cur.toISOString().split('T')[0];
+        const sat = new Date(cur); sat.setDate(sat.getDate()+6);
+        const fmt = dt => `${String(dt.getDate()).padStart(2,'0')} ${dt.toLocaleString('en-GB',{month:'short'})}`;
+        weeks.push({ sunStr, label: `${fmt(cur)} to ${fmt(sat)}_${cur.getFullYear()}` });
+        cur.setDate(cur.getDate() + 7);
+    }
+
+    const pctStyle = (pct) => {
+        if (pct < 0)   return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`(${pct}%)` };
+        if (pct < 20)  return { bg:'#FFFDE7', color:'#b91c1c', bold:true, text:`${pct}%` };
+        if (pct >= 70) return { bg:'',        color:'#15803d', bold:true, text:`${pct}%` };
+        return              { bg:'',        color:'#1a252f', bold:false, text:`${pct}%` };
+    };
+
+    const todayC = localDateStr(0);
+    let tHtml = `<div style="overflow-x:auto;"><table class="comp-table" style="min-width:500px;">
+        <thead><tr>
+            <th class="comp-th comp-th-name">Name</th>
+            <th class="comp-th">Level</th>
+            ${weeks.map(w=>`<th class="comp-th">${w.label.split('_')[0]}</th>`).join('')}
+        </tr></thead><tbody>`;
+
+    users.forEach((u, rowIdx) => {
+        const ents = cache.get(u.uid) || [];
+        const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        const lvlShort = (u.level||'SB').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
+
+        const nameClick = isAnyAdmin()
+            ? ` onclick="openWCRUser(${rowIdx})" style="cursor:pointer;" title="View ${esc(u.name)}"`
+            : '';
+        tHtml += `<tr style="background:${stripeBg}">
+            <td class="comp-td comp-name"${nameClick}>${esc(u.name)}</td>
+            <td class="comp-td comp-meta">${lvlShort}</td>`;
+
+        const uJoined = u.joinedDate || APP_START;
+        weeks.forEach(w => {
+            let tot=0; const weekEnts=[];
+            let curr2=new Date(w.sunStr);
+            for (let i=0;i<7;i++) {
+                const ds=curr2.toISOString().split('T')[0];
+                if (ds < APP_START || ds > todayC || ds < uJoined) { curr2.setDate(curr2.getDate()+1); continue; }
+                const en=ents.find(e=>e.date===ds);
+                if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
+                else if (ds < todayC) { tot += -35; }
+                curr2.setDate(curr2.getDate()+1);
+            }
+            const fd  = fairDenominator(w.sunStr, weekEnts, uJoined);
+            const pct = Math.round((tot/fd)*100);
+            const ps  = pctStyle(pct);
+            const pf  = `<span class="pf-badge ${pct>=50?'pf-pass':'pf-fail'}" style="margin-left:4px;">${pct>=50?'P':'F'}</span>`;
+            tHtml += `<td class="comp-td comp-pct" style="background:${ps.bg||stripeBg};color:${ps.color};font-weight:${ps.bold?'700':'400'};" title="${tot}/${fd}">${ps.text}${pf}</td>`;
+        });
+        tHtml += '</tr>';
+    });
+    tHtml += '</tbody></table></div>';
+    container.innerHTML = tHtml;
+
+    // Re-apply column highlight
+    setTimeout(highlightWCRColumn, 100);
 }
 
 window.switchTab = (t) => {
@@ -1777,6 +1860,12 @@ async function loadAdminPanel() {
     if (tabBadge) tabBadge.textContent = count4plus > 0 ? count4plus : '';
 
     tableBox.innerHTML = tHtml + '</tbody></table>';
+    // Save data for WCR re-rendering when perf filter changes
+    window._wcrFilteredUsers = filtered.map(uDoc => {
+        const u = uDoc.data();
+        return { uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user', joinedDate: u.joinedDate || APP_START };
+    });
+    window._wcrContainerId = 'admin-comparative-reports-container';
     // Build performers from loaded data
     computePerformers(filtered);
 }
@@ -2472,6 +2561,8 @@ function populateWeekDropdown() {
     _perfWeekIdx = defVal;
 }
 
+function _syncWCR() { rerenderWCRForMonth(_perfYear, _perfMonth); }
+
 window.onPerfYearChange = () => {
     const now = new Date();
     _perfYear = parseInt(document.getElementById('perf-year-sel').value);
@@ -2479,11 +2570,13 @@ window.onPerfYearChange = () => {
     _perfMonth = parseInt(document.getElementById('perf-month-sel').value);
     populateWeekDropdown();
     renderPerformersFromCache();
+    _syncWCR();
 };
 window.onPerfMonthChange = () => {
     _perfMonth = parseInt(document.getElementById('perf-month-sel').value);
     populateWeekDropdown();
     renderPerformersFromCache();
+    _syncWCR();
 };
 window.onPerfWeekChange = () => {
     _perfWeekIdx = parseInt(document.getElementById('perf-week-sel').value) || 0;
@@ -2498,11 +2591,13 @@ window.onSAPerfYearChange = () => {
     _perfMonth = parseInt(document.getElementById('sa-perf-month-sel').value);
     populateWeekDropdown();
     renderPerformersFromCache();
+    _syncWCR();
 };
 window.onSAPerfMonthChange = () => {
     _perfMonth = parseInt(document.getElementById('sa-perf-month-sel').value);
     populateWeekDropdown();
     renderPerformersFromCache();
+    _syncWCR();
 };
 window.onSAPerfWeekChange = () => {
     _perfWeekIdx = parseInt(document.getElementById('sa-perf-week-sel').value) || 0;
@@ -2658,6 +2753,50 @@ function renderPerformersFromCache() {
         ['#1d4ed8','#3b82f6','#93c5fd'], true);
     renderRing('sa-weak-performers-chart', weak,
         ['#dc2626','#f97316','#fbbf24'], false);
+
+    // Highlight matching WCR column
+    highlightWCRColumn();
+}
+
+function highlightWCRColumn() {
+    // Remove existing highlights
+    document.querySelectorAll('.col-highlight').forEach(el => el.classList.remove('col-highlight'));
+
+    if (_perfTab !== 'weekly') return; // only highlight for weekly view
+
+    const monthStart = `${_perfYear}-${String(_perfMonth+1).padStart(2,'0')}-01`;
+    const monthEnd   = new Date(_perfYear, _perfMonth+1, 0).toISOString().split('T')[0];
+    const weeks      = getWeeksInMonth(monthStart, monthEnd);
+    const selectedSun = weeks[Math.min(_perfWeekIdx, weeks.length-1)];
+    if (!selectedSun) return;
+
+    // Find which column in the comp-table matches this week's sunStr
+    ['comp-perf-table', 'admin-comparative-reports-container'].forEach(containerId => {
+        const table = document.getElementById(containerId)?.querySelector?.('table') ||
+                      document.getElementById(containerId);
+        if (!table || !table.querySelector) return;
+        const ths = table.querySelectorAll('th.comp-th');
+        let matchCol = -1;
+        ths.forEach((th, i) => {
+            // The header text is like "01 Mar to 07 Mar"
+            // Convert selectedSun to the same format to match
+            const sun = new Date(selectedSun);
+            const sat = new Date(selectedSun); sat.setDate(sat.getDate() + 6);
+            const fmt = d => `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString('en-GB',{month:'short'})}`;
+            const expected = `${fmt(sun)} to ${fmt(sat)}`;
+            if (th.textContent.trim().includes(fmt(sun))) matchCol = i;
+        });
+        if (matchCol < 0) return;
+
+        // Highlight the header
+        ths[matchCol]?.classList.add('col-highlight');
+
+        // Highlight all cells in that column
+        table.querySelectorAll('tbody tr').forEach(tr => {
+            const tds = tr.querySelectorAll('td');
+            if (tds[matchCol]) tds[matchCol].classList.add('col-highlight');
+        });
+    });
 }
 
 function renderRing(containerId, data, colors, isBest) {
@@ -2792,7 +2931,7 @@ function avatarHtml(photoURL, name, size) {
 // ═══════════════════════════════════════════════════════════
 let _lbLoading         = false;
 let _lbCategoryFilter  = ''; // '' = all, or specific level string
-let _lbMode            = 'daily'; // 'daily' | 'current-week' | 'prev-week'
+let _lbMode            = 'current-week'; // 'daily' | 'current-week' | 'prev-week'
 
 // Returns { dates[], weekStart Date, weekEnd Date } for offset 0=this week, 1=last week
 function getWeekDates(weekOffset) {
