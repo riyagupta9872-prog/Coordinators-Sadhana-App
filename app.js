@@ -38,6 +38,9 @@ const visibleCategories = () => {
 const _escDiv = document.createElement('div');
 function esc(s) { _escDiv.textContent = s || ''; return _escDiv.innerHTML; }
 
+// NR penalty based on level (Senior Batch gets extra -5 for notes)
+function nrPenalty(level) { return level === 'Senior Batch' ? -35 : -30; }
+
 // ═══════════════════════════════════════════════════════════
 // 3. HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -357,7 +360,7 @@ window.downloadMasterReport = async () => {
                     if (ds > todayM) break;  // skip future dates
                     const en = entries.find(e=>e.date===ds);
                     if (en) { tot += en.score; masterWeekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
-                    else if (ds < todayM) { tot += -35; } // only penalize past dates
+                    else if (ds < todayM) { tot += nrPenalty(user.level); } // only penalize past dates
                 }
                 const mfd = fairDenominator(wSun, masterWeekEnts, mJd);
                 const pct = Math.round((tot/mfd)*100);
@@ -457,8 +460,10 @@ window.downloadCategoryExcel = async (category) => {
                             e.notesMinutes||0, sc.notes??0, e.daySleepMinutes||0, sc.daySleep??0,
                             e.totalScore||0, (e.dayPercent||0)+'%']);
                     } else {
-                        tot += -35;
-                        rows.push([lbl, 'NR',-5,'NR',-5,'NR',-5,0,-5,0,-5,0,-5,0,-5,0,0,-35,'-22%']);
+                        const _nrP = nrPenalty(u.level);
+                        const _nrN = u.level === 'Senior Batch' ? -5 : 0;
+                        tot += _nrP;
+                        rows.push([lbl, 'NR',-5,'NR',-5,'NR',-5,0,-5,0,-5,0,-5,0,_nrN,0,0,_nrP,Math.round((_nrP/160)*100)+'%']);
                     }
                 }
                 const fd = fairDenominator(week.sunStr, weekEnts, uJd);
@@ -767,7 +772,7 @@ async function loadUserWCR() {
                 if (ds < APP_START || ds > todayC || ds < uJoined) { curr.setDate(curr.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
-                else if (ds < todayC) { tot += -35; }
+                else if (ds < todayC) { tot += nrPenalty(u.level); }
                 curr.setDate(curr.getDate()+1);
             }
             const fd  = fairDenominator(w.sunStr, weekEnts, uJoined);
@@ -851,7 +856,7 @@ function rerenderWCRForMonth(year, month) {
                 if (ds < APP_START || ds > todayC || ds < uJoined) { curr2.setDate(curr2.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
-                else if (ds < todayC) { tot += -35; }
+                else if (ds < todayC) { tot += nrPenalty(u.level); }
                 curr2.setDate(curr2.getDate()+1);
             }
             const fd  = fairDenominator(w.sunStr, weekEnts, uJoined);
@@ -1168,7 +1173,7 @@ async function loadSAHome(weekOffset, btn) {
         snaps.forEach(snap => {
             if (snap.exists) {
                 const d = snap.data();
-                if ((d.totalScore ?? 0) > 0 || d.sleepTime) { daysFilled++; totalScore += d.totalScore ?? 0; }
+                if (d.sleepTime && d.sleepTime !== 'NR') { daysFilled++; totalScore += d.totalScore ?? 0; }
             }
         });
         const weekPct = daysFilled > 0 ? Math.round(totalScore * 100 / (daysFilled * 160)) : 0;
@@ -1178,48 +1183,33 @@ async function loadSAHome(weekOffset, btn) {
         const chk = new Date(today + 'T00:00:00');
         // Check if today is filled (from snaps if weekOffset=0)
         const todayIdx = (weekOffset ?? 0) === 0 ? dates.indexOf(today) : -1;
-        const todayFilled = todayIdx >= 0 && snaps[todayIdx]?.exists && (snaps[todayIdx].data().totalScore > 0 || snaps[todayIdx].data().sleepTime);
+        const todayFilled = todayIdx >= 0 && snaps[todayIdx]?.exists && snaps[todayIdx].data().sleepTime && snaps[todayIdx].data().sleepTime !== 'NR';
         if (!todayFilled) chk.setDate(chk.getDate() - 1);
-        // Count from snaps + dates
         const filledSet = new Set();
         snaps.forEach((s, i) => {
-            if (s.exists && ((s.data().totalScore ?? 0) > 0 || s.data().sleepTime)) filledSet.add(dates[i]);
+            if (s.exists && s.data().sleepTime && s.data().sleepTime !== 'NR') filledSet.add(dates[i]);
         });
         while (filledSet.has(toStr(chk))) { streak++; chk.setDate(chk.getDate() - 1); }
 
         const lvlShort = lvl.replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
-        userRows.push({ name: u.name || '—', level: lvlShort, daysFilled, fairDays, weekPct, streak, totalScore });
+        userRows.push({ uid: uDoc.id, name: u.name || '—', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user', daysFilled, fairDays, weekPct, streak, totalScore });
     });
 
-    // Category cards
-    const catsEl = document.getElementById('sa-home-cats');
-    if (catsEl) {
-        const catLabels = { 'Senior Batch': 'SB', 'IGF Co-ordinator': 'IGF', 'IYF Co-ordinator': 'IYF', 'ICF Coordinator': 'ICF' };
-        const catColors = { 'Senior Batch': '#7c3aed', 'IGF Co-ordinator': '#2563eb', 'IYF Co-ordinator': '#059669', 'ICF Coordinator': '#d97706' };
-        catsEl.innerHTML = allCats.map(c => `
-            <div class="card" style="padding:12px;border-left:4px solid ${catColors[c]};margin:0;cursor:pointer;" onclick="saTab('usermgmt',null);setTimeout(()=>saLvlFilter('usermgmt','${catLabels[c]}',document.querySelector('#admin-sub-usermgmt .sa-lvl-btn')),200);">
-                <div style="font-size:22px;font-weight:800;color:var(--primary);">${catCounts[c] || 0}</div>
-                <div style="font-size:11px;color:var(--text-2);font-weight:600;">${catLabels[c]} Devotees</div>
-            </div>
-        `).join('');
-    }
+    // Total count + category counts in filter badges
+    const totalEl = document.getElementById('sa-home-total');
+    if (totalEl) totalEl.textContent = nonSADocs.length;
+    const catLabels = { 'Senior Batch': 'SB', 'IGF Co-ordinator': 'IGF', 'IYF Co-ordinator': 'IYF', 'ICF Coordinator': 'ICF' };
+    allCats.forEach(c => {
+        const el = document.getElementById('sa-cat-count-' + catLabels[c]);
+        if (el) el.textContent = `(${catCounts[c] || 0})`;
+    });
 
-    // Table
-    userRows.sort((a, b) => b.weekPct - a.weekPct);
-    const tbody = document.getElementById('sa-home-tbody');
-    if (tbody) {
-        tbody.innerHTML = userRows.map((r, i) => {
-            const pctColor = r.weekPct >= 70 ? '#15803d' : r.weekPct >= 50 ? '#d97706' : '#dc2626';
-            const stripe = i % 2 === 0 ? '#fff' : '#f8fafc';
-            return `<tr style="background:${stripe};">
-                <td style="padding:8px 10px;text-align:left;font-weight:600;">${esc(r.name)}</td>
-                <td style="padding:8px 6px;text-align:center;font-size:12px;">${r.level}</td>
-                <td style="padding:8px 6px;text-align:center;font-weight:700;">${r.daysFilled} / ${r.fairDays}</td>
-                <td style="padding:8px 6px;text-align:center;font-weight:700;color:${pctColor};">${r.weekPct}%</td>
-                <td style="padding:8px 6px;text-align:center;">${r.streak > 0 ? '🔥 ' + r.streak : '—'}</td>
-            </tr>`;
-        }).join('');
-    }
+    // Store rows globally for filtering
+    window._saHomeRows = userRows;
+    window._saHomeFilter = '';
+
+    // Render table
+    renderSAHomeTable(userRows);
 
     // Top 3
     const top3El = document.getElementById('sa-home-top3');
@@ -1242,6 +1232,45 @@ async function loadSAHome(weekOffset, btn) {
 
     _saHomeLoaded = true;
 }
+
+function renderSAHomeTable(rows) {
+    rows.sort((a, b) => b.daysFilled - a.daysFilled || b.weekPct - a.weekPct);
+    const tbody = document.getElementById('sa-home-tbody');
+    if (!tbody) return;
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa;">No devotees in this category</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map((r, i) => {
+        const missed = r.fairDays - r.daysFilled;
+        const pctColor = r.weekPct >= 70 ? '#15803d' : r.weekPct >= 50 ? '#d97706' : '#dc2626';
+        const missedColor = missed === 0 ? '#15803d' : missed <= 1 ? '#d97706' : '#dc2626';
+        const missedBg = missed >= 2 ? '#fff5f5' : '';
+        const stripe = i % 2 === 0 ? '#fff' : '#f8fafc';
+        const bg = missed >= 2 ? missedBg : stripe;
+        const safe = (r.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<tr style="background:${bg};cursor:pointer;" onclick="openUAC('${r.uid}','${safe}','${r.level}','${r.chanting}','${r.rounds}','${r.role}')">
+            <td style="padding:8px 10px;text-align:left;font-weight:600;">${esc(r.name)}</td>
+            <td style="padding:8px 6px;text-align:center;font-size:11px;color:var(--text-2);">${r.level}</td>
+            <td style="padding:8px 6px;text-align:center;font-weight:700;color:#15803d;">✅ ${r.daysFilled}/${r.fairDays}</td>
+            <td style="padding:8px 6px;text-align:center;font-weight:700;color:${missedColor};">${missed === 0 ? '—' : '❌ ' + missed}</td>
+            <td style="padding:8px 6px;text-align:center;font-weight:700;color:${pctColor};">${r.weekPct}%</td>
+        </tr>`;
+    }).join('');
+}
+
+window.filterSAHome = (cat, btn) => {
+    document.querySelectorAll('#sa-home-cat-filters .sa-lvl-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    window._saHomeFilter = cat;
+    const rows = window._saHomeRows || [];
+    const filtered = cat ? rows.filter(r => r.level === cat) : rows;
+    renderSAHomeTable(filtered);
+
+    // Update total count display
+    const totalEl = document.getElementById('sa-home-total');
+    if (totalEl) totalEl.textContent = filtered.length;
+};
 
 // ═══════════════════════════════════════════════════════════
 // 8. SUPER ADMIN: Tab switching + Level filters + UAC sheet
@@ -1548,8 +1577,11 @@ let progressModalUserId   = null;
 let progressModalUserName = null;
 
 async function fetchChartData(userId, view) {
-    const snap = await db.collection('users').doc(userId).collection('sadhana')
-        .orderBy(firebase.firestore.FieldPath.documentId()).get();
+    const [snap, uDoc] = await Promise.all([
+        db.collection('users').doc(userId).collection('sadhana').orderBy(firebase.firestore.FieldPath.documentId()).get(),
+        db.collection('users').doc(userId).get()
+    ]);
+    const _chartLevel = uDoc.exists ? (uDoc.data().level || 'Senior Batch') : 'Senior Batch';
     const allEntries = [];
     snap.forEach(doc => {
         if (doc.id >= APP_START) allEntries.push({ date: doc.id, score: doc.data().totalScore || 0 });
@@ -1562,7 +1594,7 @@ async function fetchChartData(userId, view) {
             const entry = allEntries.find(e => e.date === ds);
             if (i === 0 && !entry) continue;
             labels.push(ds.split('-').slice(1).reverse().join('/'));
-            data.push(entry ? entry.score : -35);
+            data.push(entry ? entry.score : nrPenalty(_chartLevel));
         }
         return { labels, data, label:'Daily Score', max:160, color:'#3498db' };
     }
@@ -1579,7 +1611,7 @@ async function fetchChartData(userId, view) {
                 if (ds > todayStr) { curr.setDate(curr.getDate()+1); continue; }
                 const en = allEntries.find(e=>e.date===ds);
                 if (ds === todayStr && !en) { curr.setDate(curr.getDate()+1); continue; }
-                tot += en ? en.score : -35;
+                tot += en ? en.score : nrPenalty(_chartLevel);
                 curr.setDate(curr.getDate()+1);
             }
             labels.push(wi.label.split('_')[0].split(' to ')[0]);
@@ -1895,7 +1927,7 @@ async function loadAdminPanel() {
                 if (ds < APP_START || ds > todayComp || ds < uJd2) { curr.setDate(curr.getDate()+1); continue; }
                 const en=ents.find(e=>e.date===ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
-                else if (ds < todayComp) { tot += -35; }
+                else if (ds < todayComp) { tot += nrPenalty(u.level); }
                 curr.setDate(curr.getDate()+1);
             }
             const fd = fairDenominator(w.sunStr, weekEnts, uJd2);
@@ -2817,7 +2849,7 @@ function renderPerformersFromCache() {
 
     const scores = [];
 
-    data.forEach(({ name, ents, joinedDate }) => {
+    data.forEach(({ name, level: perfLevel, ents, joinedDate }) => {
         let pct = 0;
         const pJd = joinedDate || APP_START;
 
@@ -2832,7 +2864,7 @@ function renderPerformersFromCache() {
                 if (ds < APP_START || ds > todayP || ds < pJd) continue;
                 const en = ents.find(e => e.date === ds);
                 if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
-                else if (ds < todayP) { tot -= 35; } // only penalize past days
+                else if (ds < todayP) { tot += nrPenalty(perfLevel); } // only penalize past days
             }
             const fd = fairDenominator(weekSun, wEnts, pJd);
             pct = fd > 0 ? Math.round((tot / fd) * 100) : 0;
@@ -2850,7 +2882,7 @@ function renderPerformersFromCache() {
                     if (ds < monthStart || ds > monthEnd || ds < APP_START || ds > todayP || ds < pJd) continue;
                     const en = ents.find(e => e.date === ds);
                     if (en) { tot += en.score; wEnts.push({id:ds, sleepTime:en.sleepTime||''}); }
-                    else if (ds < todayP) { tot -= 35; } // only penalize past days
+                    else if (ds < todayP) { tot += nrPenalty(perfLevel); } // only penalize past days
                 }
                 const fd = fairDenominator(weekSun, wEnts, pJd);
                 if (fd > 160) { sum += Math.round((tot/fd)*100); count++; }
@@ -3051,6 +3083,7 @@ function avatarHtml(photoURL, name, size) {
 // 22. LEADERBOARD
 // ═══════════════════════════════════════════════════════════
 let _lbLoading         = false;
+let _lbRequestId       = 0;   // incremented on each load to cancel stale responses
 let _lbCategoryFilter  = ''; // '' = all, or specific level string
 let _lbMode            = 'current-week'; // 'daily' | 'current-week' | 'prev-week'
 
@@ -3097,6 +3130,7 @@ window.setLbFilter = (cat, btn) => {
 window.loadLeaderboard = async (force) => {
     if (_lbLoading && !force) return;
     _lbLoading = true;
+    const thisReqId = ++_lbRequestId;
 
     const isWeekly = _lbMode === 'current-week' || _lbMode === 'prev-week';
 
@@ -3271,11 +3305,15 @@ window.loadLeaderboard = async (force) => {
             }
         });
 
+        // If a newer request was fired, discard this stale result
+        if (thisReqId !== _lbRequestId) { _lbLoading = false; return; }
+
         containers.forEach(({ cont, label }) => {
             if (label) label.textContent = `${dateDisp} · ${rows.length} submitted`;
             cont.innerHTML = filterBar + listHtml;
         });
     } catch (e) {
+        if (thisReqId !== _lbRequestId) { _lbLoading = false; return; }
         containers.forEach(({ cont }) => { cont.innerHTML = `<p style="color:#dc2626;text-align:center;padding:20px;">Error loading leaderboard.</p>`; });
     }
     _lbLoading = false;

@@ -1668,26 +1668,36 @@
             <div id="admin-content-area">
                 <!-- SA Home Dashboard -->
                 <div id="admin-sub-home" class="admin-sub-panel hidden">
-                    <div class="section-title" style="margin-bottom:14px;">🏠 Dashboard Overview</div>
-                    <!-- Category Cards -->
-                    <div id="sa-home-cats" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;"></div>
-                    <!-- This Week Stats -->
-                    <div class="card" style="margin-bottom:14px;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-                            <div class="section-title" style="margin:0;">📅 This Week</div>
+                    <!-- Total + Category Filters -->
+                    <div class="card" style="margin-bottom:14px;padding:14px 18px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+                            <div>
+                                <span style="font-size:24px;font-weight:800;color:var(--primary);" id="sa-home-total">0</span>
+                                <span style="font-size:13px;color:var(--text-2);font-weight:600;margin-left:4px;">Total Devotees</span>
+                            </div>
                             <div class="chart-tabs" style="margin:0;" id="sa-home-week-tabs">
                                 <button class="chart-tab-btn active" onclick="loadSAHome(0,this)">This Week</button>
-                                <button class="chart-tab-btn"        onclick="loadSAHome(-1,this)">Last Week</button>
+                                <button class="chart-tab-btn"        onclick="loadSAHome(1,this)">Last Week</button>
                             </div>
                         </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="sa-home-cat-filters">
+                            <button class="sa-lvl-btn active" onclick="filterSAHome('',this)">All</button>
+                            <button class="sa-lvl-btn" onclick="filterSAHome('SB',this)">SB <span id="sa-cat-count-SB" style="opacity:.6;"></span></button>
+                            <button class="sa-lvl-btn" onclick="filterSAHome('IGF',this)">IGF <span id="sa-cat-count-IGF" style="opacity:.6;"></span></button>
+                            <button class="sa-lvl-btn" onclick="filterSAHome('IYF',this)">IYF <span id="sa-cat-count-IYF" style="opacity:.6;"></span></button>
+                            <button class="sa-lvl-btn" onclick="filterSAHome('ICF',this)">ICF <span id="sa-cat-count-ICF" style="opacity:.6;"></span></button>
+                        </div>
+                    </div>
+                    <!-- Devotee Table -->
+                    <div class="card" style="margin-bottom:14px;">
                         <div style="overflow-x:auto;">
                             <table style="width:100%;border-collapse:collapse;font-size:13px;" id="sa-home-table">
                                 <thead><tr style="background:var(--primary);color:white;">
                                     <th style="padding:8px 10px;text-align:left;">Devotee</th>
-                                    <th style="padding:8px 6px;text-align:center;">Category</th>
-                                    <th style="padding:8px 6px;text-align:center;">Days Filled</th>
-                                    <th style="padding:8px 6px;text-align:center;">Week %</th>
-                                    <th style="padding:8px 6px;text-align:center;">🔥 Streak</th>
+                                    <th style="padding:8px 6px;text-align:center;">Cat</th>
+                                    <th style="padding:8px 6px;text-align:center;">Filled</th>
+                                    <th style="padding:8px 6px;text-align:center;">Missed</th>
+                                    <th style="padding:8px 6px;text-align:center;">%</th>
                                 </tr></thead>
                                 <tbody id="sa-home-tbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa;">Loading...</td></tr></tbody>
                             </table>
