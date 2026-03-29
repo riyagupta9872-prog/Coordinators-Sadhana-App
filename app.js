@@ -657,12 +657,9 @@ function initDashboard() {
         switchTab('admin');
         adminPanelLoaded = true;
         loadAdminPanel();
-        document.querySelectorAll('.admin-sub-panel').forEach(p => {
-            p.classList.remove('active'); p.classList.add('hidden');
-        });
-        const wcr = document.getElementById('admin-sub-reports');
-        if (wcr) { wcr.classList.remove('hidden'); wcr.classList.add('active'); }
         document.querySelectorAll('.sa-lvl-bar').forEach(b => b.style.display = 'flex');
+        // Default to Home sub-panel
+        saTab('home', null);
     } else {
         // Regular user or category admin — user bottom nav
         if (userTabs) userTabs.style.display = 'none'; // replaced by bottom nav
@@ -1124,6 +1121,129 @@ async function loadHomePanel(weekOffset) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// 7c. SA HOME PANEL — overview dashboard for super admin
+// ═══════════════════════════════════════════════════════════
+
+let _saHomeLoaded = false;
+async function loadSAHome(weekOffset, btn) {
+    if (btn) {
+        document.querySelectorAll('#sa-home-week-tabs .chart-tab-btn').forEach((b, i) =>
+            b.classList.toggle('active', i === (weekOffset === 0 ? 0 : 1)));
+    }
+    const today = localDateStr(0);
+    const toStr = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    // Week dates
+    const now = new Date();
+    const dow = now.getDay();
+    const ws = new Date(now); ws.setDate(now.getDate() - dow - ((weekOffset ?? 0) * 7)); ws.setHours(0,0,0,0);
+    const we = new Date(ws); we.setDate(ws.getDate() + 6);
+    if ((weekOffset ?? 0) === 0 && we > now) we.setTime(now.getTime());
+    const dates = [];
+    const cur = new Date(ws);
+    while (cur <= we) { dates.push(toStr(cur)); cur.setDate(cur.getDate() + 1); }
+    const fairDays = dates.length;
+
+    const usersSnap = await db.collection('users').get();
+    const allCats = ['Senior Batch','IGF Co-ordinator','IYF Co-ordinator','ICF Coordinator'];
+    const catCounts = {};
+    allCats.forEach(c => { catCounts[c] = 0; });
+
+    const userRows = [];
+
+    // Fetch all sadhana in parallel
+    const nonSADocs = usersSnap.docs.filter(d => d.data().role !== 'superAdmin');
+    const allSnaps = await Promise.all(nonSADocs.map(uDoc =>
+        Promise.all(dates.map(d => uDoc.ref.collection('sadhana').doc(d).get()))
+    ));
+
+    nonSADocs.forEach((uDoc, idx) => {
+        const u = uDoc.data();
+        const lvl = u.level || 'Senior Batch';
+        if (catCounts[lvl] !== undefined) catCounts[lvl]++;
+        else catCounts[lvl] = 1;
+
+        const snaps = allSnaps[idx];
+        let daysFilled = 0, totalScore = 0;
+        snaps.forEach(snap => {
+            if (snap.exists) {
+                const d = snap.data();
+                if ((d.totalScore ?? 0) > 0 || d.sleepTime) { daysFilled++; totalScore += d.totalScore ?? 0; }
+            }
+        });
+        const weekPct = daysFilled > 0 ? Math.round(totalScore * 100 / (daysFilled * 160)) : 0;
+
+        // Streak: count consecutive days backwards from today/yesterday
+        let streak = 0;
+        const chk = new Date(today + 'T00:00:00');
+        // Check if today is filled (from snaps if weekOffset=0)
+        const todayIdx = (weekOffset ?? 0) === 0 ? dates.indexOf(today) : -1;
+        const todayFilled = todayIdx >= 0 && snaps[todayIdx]?.exists && (snaps[todayIdx].data().totalScore > 0 || snaps[todayIdx].data().sleepTime);
+        if (!todayFilled) chk.setDate(chk.getDate() - 1);
+        // Count from snaps + dates
+        const filledSet = new Set();
+        snaps.forEach((s, i) => {
+            if (s.exists && ((s.data().totalScore ?? 0) > 0 || s.data().sleepTime)) filledSet.add(dates[i]);
+        });
+        while (filledSet.has(toStr(chk))) { streak++; chk.setDate(chk.getDate() - 1); }
+
+        const lvlShort = lvl.replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
+        userRows.push({ name: u.name || '—', level: lvlShort, daysFilled, fairDays, weekPct, streak, totalScore });
+    });
+
+    // Category cards
+    const catsEl = document.getElementById('sa-home-cats');
+    if (catsEl) {
+        const catLabels = { 'Senior Batch': 'SB', 'IGF Co-ordinator': 'IGF', 'IYF Co-ordinator': 'IYF', 'ICF Coordinator': 'ICF' };
+        const catColors = { 'Senior Batch': '#7c3aed', 'IGF Co-ordinator': '#2563eb', 'IYF Co-ordinator': '#059669', 'ICF Coordinator': '#d97706' };
+        catsEl.innerHTML = allCats.map(c => `
+            <div class="card" style="padding:12px;border-left:4px solid ${catColors[c]};margin:0;cursor:pointer;" onclick="saTab('usermgmt',null);setTimeout(()=>saLvlFilter('usermgmt','${catLabels[c]}',document.querySelector('#admin-sub-usermgmt .sa-lvl-btn')),200);">
+                <div style="font-size:22px;font-weight:800;color:var(--primary);">${catCounts[c] || 0}</div>
+                <div style="font-size:11px;color:var(--text-2);font-weight:600;">${catLabels[c]} Devotees</div>
+            </div>
+        `).join('');
+    }
+
+    // Table
+    userRows.sort((a, b) => b.weekPct - a.weekPct);
+    const tbody = document.getElementById('sa-home-tbody');
+    if (tbody) {
+        tbody.innerHTML = userRows.map((r, i) => {
+            const pctColor = r.weekPct >= 70 ? '#15803d' : r.weekPct >= 50 ? '#d97706' : '#dc2626';
+            const stripe = i % 2 === 0 ? '#fff' : '#f8fafc';
+            return `<tr style="background:${stripe};">
+                <td style="padding:8px 10px;text-align:left;font-weight:600;">${esc(r.name)}</td>
+                <td style="padding:8px 6px;text-align:center;font-size:12px;">${r.level}</td>
+                <td style="padding:8px 6px;text-align:center;font-weight:700;">${r.daysFilled} / ${r.fairDays}</td>
+                <td style="padding:8px 6px;text-align:center;font-weight:700;color:${pctColor};">${r.weekPct}%</td>
+                <td style="padding:8px 6px;text-align:center;">${r.streak > 0 ? '🔥 ' + r.streak : '—'}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // Top 3
+    const top3El = document.getElementById('sa-home-top3');
+    if (top3El) {
+        const top3 = userRows.slice(0, 3);
+        const medals = ['🥇','🥈','🥉'];
+        top3El.innerHTML = top3.length === 0
+            ? '<p style="color:#aaa;text-align:center;">No data yet</p>'
+            : top3.map((r, i) => `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;${i < 2 ? 'border-bottom:1px solid var(--border);' : ''}">
+                    <span style="font-size:20px;">${medals[i]}</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:14px;color:var(--primary);">${esc(r.name)}</div>
+                        <div style="font-size:11px;color:var(--text-3);">${r.level} · ${r.daysFilled}/${r.fairDays} days · 🔥${r.streak}</div>
+                    </div>
+                    <div style="font-size:18px;font-weight:800;color:${r.weekPct >= 70 ? '#15803d' : r.weekPct >= 50 ? '#d97706' : '#dc2626'};">${r.weekPct}%</div>
+                </div>
+            `).join('');
+    }
+
+    _saHomeLoaded = true;
+}
+
+// ═══════════════════════════════════════════════════════════
 // 8. SUPER ADMIN: Tab switching + Level filters + UAC sheet
 // ═══════════════════════════════════════════════════════════
 
@@ -1136,10 +1256,11 @@ window.saTab = (section, btn) => {
     });
     const panel = document.getElementById('admin-sub-' + section);
     if (panel) { panel.classList.remove('hidden'); panel.classList.add('active'); }
+    if (section === 'home')        loadSAHome(0);
     if (section === 'leaderboard') loadLeaderboard(false);
     if (section === 'tasks')       loadSATasks();
-    // Sync SA bottom nav
-    const saTabMap = { reports: 0, usermgmt: 1, inactive: 2, leaderboard: 3, tasks: 4 };
+    // Sync SA bottom nav (Home=0, WCR=1, Devotees=2, Inactive=3, Rankings=4, Tasks=5)
+    const saTabMap = { home: 0, reports: 1, usermgmt: 2, inactive: 3, leaderboard: 4, tasks: 5 };
     document.querySelectorAll('#sa-bottom-nav .bnav-item').forEach((b, i) =>
         b.classList.toggle('active', i === (saTabMap[section] ?? -1)));
 };
@@ -3031,6 +3152,16 @@ window.loadLeaderboard = async (force) => {
             // ── Weekly: aggregate over date range ──
             const weekOffset = _lbMode === 'prev-week' ? 1 : 0;
             const { dates, weekStart, weekEnd } = getWeekDates(weekOffset);
+            if (!dates.length) {
+                // Early in the week (e.g. Sunday) — no completed days yet, show message
+                const fmtD = d => d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+                dateDisp = `${fmtD(weekStart)} – ${fmtD(weekEnd)} (week just started)`;
+                containers.forEach(({ cont, label }) => {
+                    if (label) label.textContent = dateDisp;
+                    cont.innerHTML = '<p style="color:#aaa;text-align:center;padding:20px;">Week just started — no completed days yet. Check back tomorrow!</p>';
+                });
+                _lbLoading = false; return;
+            }
             const startStr = dates[0], endStr = dates[dates.length - 1];
             const fmtD = d => d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
             dateDisp = `${fmtD(weekStart)} – ${fmtD(weekEnd)}`;
