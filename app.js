@@ -3207,20 +3207,35 @@ window.loadLeaderboard = async (force) => {
             ));
             filtered.forEach((uDoc, i) => {
                 const u = uDoc.data();
-                const validDocs = weekSnaps[i].docs.filter(d => {
-                    const data = d.data();
-                    return data.sleepTime && data.sleepTime !== 'NR';
+                const uJd = u.joinedDate || APP_START;
+                const submittedMap = {};
+                weekSnaps[i].docs.forEach(d => {
+                    const dd = d.data();
+                    if (dd.sleepTime && dd.sleepTime !== 'NR') submittedMap[d.id] = dd;
                 });
-                if (validDocs.length === 0) return;
-                const totalScore = validDocs.reduce((sum, d) => sum + (d.data().totalScore ?? 0), 0);
-                const avgPct     = Math.round(validDocs.reduce((sum, d) => sum + (d.data().dayPercent ?? 0), 0) / validDocs.length);
+                // Calculate score for ALL fair days (submitted + NR penalty for missed)
+                let totalScore = 0, fairCount = 0, filledCount = 0;
+                let hasRejected = false;
+                dates.forEach(ds => {
+                    if (ds < uJd || ds < APP_START) return; // skip pre-join
+                    fairCount++;
+                    if (submittedMap[ds]) {
+                        totalScore += submittedMap[ds].totalScore ?? 0;
+                        filledCount++;
+                        if (submittedMap[ds].rejected) hasRejected = true;
+                    } else {
+                        totalScore += nrPenalty(u.level); // penalize NR
+                    }
+                });
+                if (fairCount === 0) return;
+                const weekPct = Math.round(totalScore * 100 / (fairCount * 160));
                 rows.push({
                     uid: uDoc.id, name: u.name || '—', photo: u.photoURL || null,
                     level:    (u.level || '').replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB'),
                     score:    totalScore,
-                    pct:      avgPct,
-                    days:     validDocs.length,
-                    rejected: validDocs.some(d => d.data().rejected)
+                    pct:      weekPct,
+                    days:     filledCount + '/' + fairCount,
+                    rejected: hasRejected
                 });
             });
         }
@@ -3253,7 +3268,7 @@ window.loadLeaderboard = async (force) => {
                 const isSelf     = r.uid === currentUser.uid;
                 const scoreColor = r.score >= (isWeekly ? 500 : 100) ? '#15803d' : r.score >= (isWeekly ? 300 : 60) ? '#d97706' : '#dc2626';
                 const medal      = i < 3 ? MEDALS[i] : `<span style="font-size:13px;font-weight:700;color:#9ca3af;">#${i+1}</span>`;
-                const subLine    = r.days !== null ? `avg ${r.pct}% · ${r.days}d` : `${r.pct}%`;
+                const subLine    = r.days !== null ? `${r.pct}% · ${r.days}` : `${r.pct}%`;
                 const clickAttr  = isAnyAdmin() ? ` onclick="lbRowClick('${r.uid}')" style="cursor:pointer;"` : '';
                 return `<div class="lb-row${isSelf ? ' lb-self' : ''}"${clickAttr}>
                     <div class="lb-rank">${medal}</div>
