@@ -282,8 +282,10 @@
         .data-table th { background: #f8f9fa; font-weight: 600; font-size: 11px;
             position: sticky; top: 0; z-index: 3; }
         .data-table td:first-child { text-align: left; font-weight: 500;
-            position: sticky; left: 0; z-index: 2; background: white; }
-        .data-table th:first-child { position: sticky; left: 0; top: 0; z-index: 4; background: #f8f9fa; }
+            position: sticky; left: 0; z-index: 2; background: white; min-width: 34px; }
+        .data-table th:first-child { position: sticky; left: 0; top: 0; z-index: 4; background: #f8f9fa; min-width: 34px; }
+        .data-table td:nth-child(2) { position: sticky; left: 34px; z-index: 2; background: white; font-weight: 600; }
+        .data-table th:nth-child(2) { position: sticky; left: 34px; top: 0; z-index: 4; background: #f8f9fa; }
 
         /* ── MODALS ── */
         .modal-overlay {
@@ -783,13 +785,15 @@
             gap: 6px;
         }
 
-        /* Sticky first column — shadow separator */
-        .data-table tr td:first-child {
+        /* Sticky first two columns — shadow separator on Date column */
+        .data-table tr td:first-child { background: inherit; }
+        .data-table tr td:nth-child(2) {
             background: inherit;
             box-shadow: 3px 0 6px rgba(0,0,0,0.12);
             clip-path: inset(0px -8px 0px 0px);
         }
-        .data-table thead th:first-child {
+        .data-table thead th:first-child { background: #f8f9fa; }
+        .data-table thead th:nth-child(2) {
             background: #f8f9fa;
             box-shadow: 3px 0 6px rgba(0,0,0,0.15);
             clip-path: inset(0px -8px 0px 0px);
@@ -1829,7 +1833,14 @@
                         <h3 style="margin:0 0 14px;color:var(--primary);font-size:15px;">&#128203; Post a Task / Announcement</h3>
                         <input type="text" id="task-title-input" placeholder="Title (required)" style="margin-bottom:8px;">
                         <textarea id="task-body-input" placeholder="Description / instructions (optional)" rows="3" style="width:100%;padding:10px 13px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;margin-bottom:8px;font-family:inherit;"></textarea>
-                        <input type="url" id="task-url-input" placeholder="Attachment URL (optional — Google Drive, YouTube, etc.)" style="margin-bottom:8px;">
+                        <input type="url" id="task-url-input" placeholder="Link URL (optional — Google Drive, YouTube, etc.)" style="margin-bottom:8px;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <label style="flex:1;display:flex;align-items:center;gap:8px;padding:10px 14px;border:1.5px dashed var(--border);border-radius:var(--r-md);cursor:pointer;font-size:13px;color:var(--text-2);background:#fafcff;margin:0;width:auto;">
+                                📎 <span id="task-file-label">Attach file (any type, max 1MB)</span>
+                                <input type="file" id="task-file-input" style="display:none;" onchange="handleTaskFile(this)">
+                            </label>
+                            <button type="button" id="task-file-clear" style="display:none;width:auto;padding:6px 10px;font-size:11px;border-radius:6px;background:#fee2e2;color:#dc2626;border:none;cursor:pointer;margin:0;" onclick="clearTaskFile()">✕ Remove</button>
+                        </div>
                         <select id="task-category-sel" style="margin-bottom:10px;">
                             <option value="all">📢 All Categories</option>
                             <option value="Senior Batch">Senior Batch only</option>

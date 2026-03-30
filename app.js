@@ -3405,9 +3405,12 @@ window.loadSATasks = async () => {
 function buildTaskCard(t, showDelete, allUsers) {
     const catLabel = t.targetCategory === 'all' ? '📢 All' : t.targetCategory;
     const dateStr  = t.createdAt ? new Date(t.createdAt.toDate ? t.createdAt.toDate() : t.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '';
-    const linkHtml = t.attachmentUrl
-        ? `<a href="${t.attachmentUrl}" target="_blank" rel="noopener" class="task-link">🔗 ${t.attachmentUrl}</a>`
+    let linkHtml = t.attachmentUrl
+        ? `<a href="${esc(t.attachmentUrl)}" target="_blank" rel="noopener" class="task-link">🔗 ${esc(t.attachmentUrl)}</a>`
         : '';
+    if (t.fileData && t.fileName) {
+        linkHtml += `<a href="${t.fileData}" download="${esc(t.fileName)}" class="task-link" style="display:inline-flex;align-items:center;gap:4px;">📎 ${esc(t.fileName)}</a>`;
+    }
     const delBtn = showDelete
         ? `<button class="task-del-btn" onclick="deleteTask('${t.id}')" title="Delete task">🗑</button>`
         : '';
@@ -3481,6 +3484,33 @@ window.markTaskDone = async (taskId) => {
     }
 };
 
+// Task file attachment handling
+let _taskFileData = null; // { name, type, dataUrl }
+
+window.handleTaskFile = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+        alert('❌ File too large (max 1MB). For larger files, upload to Google Drive and paste the link.');
+        input.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        _taskFileData = { name: file.name, type: file.type, dataUrl: reader.result };
+        document.getElementById('task-file-label').textContent = `📎 ${file.name}`;
+        document.getElementById('task-file-clear').style.display = '';
+    };
+    reader.readAsDataURL(file);
+};
+
+window.clearTaskFile = () => {
+    _taskFileData = null;
+    document.getElementById('task-file-input').value = '';
+    document.getElementById('task-file-label').textContent = 'Attach file (any type, max 1MB)';
+    document.getElementById('task-file-clear').style.display = 'none';
+};
+
 window.postTask = async () => {
     if (!isSuperAdmin()) return;
     const title = document.getElementById('task-title-input').value.trim();
@@ -3489,18 +3519,25 @@ window.postTask = async () => {
     const url      = document.getElementById('task-url-input').value.trim();
     const category = document.getElementById('task-category-sel').value;
     try {
-        await db.collection('tasks').add({
+        const taskData = {
             title,
             body:           body  || '',
             attachmentUrl:  url   || '',
             targetCategory: category,
             createdByName:  userProfile.name || 'Super Admin',
             createdAt:      firebase.firestore.FieldValue.serverTimestamp()
-        });
+        };
+        if (_taskFileData) {
+            taskData.fileName = _taskFileData.name;
+            taskData.fileType = _taskFileData.type;
+            taskData.fileData = _taskFileData.dataUrl;
+        }
+        await db.collection('tasks').add(taskData);
         document.getElementById('task-title-input').value = '';
         document.getElementById('task-body-input').value  = '';
         document.getElementById('task-url-input').value   = '';
         document.getElementById('task-category-sel').value = 'all';
+        clearTaskFile();
         await loadSATasks();
         alert('✅ Task posted!');
     } catch (e) {
