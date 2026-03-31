@@ -2053,6 +2053,15 @@
         <!-- Live score preview -->
         <div class="edit-score-preview" id="edit-score-preview">Score will appear here</div>
 
+        <!-- Move to different date -->
+        <div style="margin:12px 0;padding:10px 14px;background:#eff6ff;border-radius:var(--r-md);border:1px solid #bfdbfe;">
+            <label style="font-weight:600;font-size:13px;color:var(--primary);display:flex;align-items:center;gap:6px;margin:0 0 6px;">
+                <input type="checkbox" id="edit-change-date-toggle" onchange="document.getElementById('edit-new-date').style.display=this.checked?'':'none';" style="width:auto;margin:0;">
+                Move this entry to a different date
+            </label>
+            <input type="date" id="edit-new-date" style="display:none;margin:0;" min="2026-02-12">
+        </div>
+
         <!-- Reason for edit -->
         <div class="edit-reason-group">
             <label>Reason for Edit <span style="color:#aaa;font-weight:400;">(optional but recommended)</span></label>

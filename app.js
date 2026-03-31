@@ -1031,12 +1031,15 @@ async function loadHomePanel(weekOffset) {
     const _isSB = userProfile?.level === 'Senior Batch';
     const actMax    = { sleep: 25, wakeup: 25, chanting: 25, reading: 25, hearing: 25, service: _isSB ? 10 : 25, notes: _isSB ? 15 : 0 };
 
+    const uJd = userProfile?.joinedDate || APP_START;
+    const uLevel = userProfile?.level || 'Senior Batch';
+
     snaps.forEach((snap, i) => {
+        const ds = allFetchDates[i];
         if (snap.exists) {
             const d = snap.data();
-            if ((d.totalScore ?? 0) > 0 || d.sleepTime) {
-                filledSet.add(allFetchDates[i]);
-                // Only count this week's dates for the stats
+            if (d.sleepTime && d.sleepTime !== 'NR') {
+                filledSet.add(ds);
                 if (i < dates.length) {
                     dayCount++;
                     totalScore += d.totalScore ?? 0;
@@ -1053,8 +1056,17 @@ async function loadHomePanel(weekOffset) {
         }
     });
 
-    // Fair percentage: divide by days actually filled, not total days in range
-    const weekPct = dayCount > 0 ? Math.round(totalScore * 100 / (dayCount * 160)) : 0;
+    // Add NR penalty for missed days (same as rankings)
+    let fairDays = 0;
+    dates.forEach(ds => {
+        if (ds < uJd || ds < APP_START) return;
+        fairDays++;
+        if (!filledSet.has(ds) && ds < today) {
+            totalScore += nrPenalty(uLevel); // penalize missed past days
+        }
+    });
+
+    const weekPct = fairDays > 0 ? Math.round(totalScore * 100 / (fairDays * 160)) : 0;
 
     // Ring
     const canvas = document.getElementById('home-ring-canvas');
@@ -1067,7 +1079,7 @@ async function loadHomePanel(weekOffset) {
     const wpEl = document.getElementById('home-week-pts');
     if (wpEl) wpEl.textContent = totalScore;
     const dcEl = document.getElementById('home-days-count');
-    if (dcEl) dcEl.textContent = dayCount;
+    if (dcEl) dcEl.textContent = dayCount + '/' + fairDays;
 
     // Streak — for current week: count backwards from today/yesterday
     // For past weeks: count consecutive filled days from end of that week backwards
@@ -2081,6 +2093,11 @@ window.openEditModal = async (userId, date) => {
     document.getElementById('edit-notes-mins').value      = d.notesMinutes    || 0;
     document.getElementById('edit-day-sleep-mins').value  = d.daySleepMinutes || 0;
     document.getElementById('edit-reason').value          = '';
+    // Reset date change controls
+    const dateToggle = document.getElementById('edit-change-date-toggle');
+    const dateInput  = document.getElementById('edit-new-date');
+    if (dateToggle) dateToggle.checked = false;
+    if (dateInput) { dateInput.style.display = 'none'; dateInput.value = date; }
     const uData = uSnap.exists ? uSnap.data() : {};
     document.getElementById('edit-modal-title').textContent = `✏️ Edit Sadhna — ${uData.name||userId} · ${date}`;
     document.getElementById('edit-notes-row').classList.toggle('hidden', uLevel !== 'Senior Batch');
@@ -2123,12 +2140,30 @@ window.submitEditSadhana = async () => {
     const reason= document.getElementById('edit-reason').value.trim();
     const level = document.getElementById('edit-user-level').value || 'Senior Batch';
     if (!slp||!wak||!chn) { alert('Please fill all time fields.'); return; }
-    if (!confirm(`Save changes to ${editModalDate}?\nThis will update scores and log edit history.`)) return;
+
+    // Check if date is being moved
+    const dateToggle = document.getElementById('edit-change-date-toggle');
+    const newDateVal = document.getElementById('edit-new-date')?.value;
+    const isDateMove = dateToggle?.checked && newDateVal && newDateVal !== editModalDate;
+
+    const confirmMsg = isDateMove
+        ? `Move entry from ${editModalDate} → ${newDateVal} and save changes?\nThe old date entry will be deleted.`
+        : `Save changes to ${editModalDate}?\nThis will update scores and log edit history.`;
+    if (!confirm(confirmMsg)) return;
+
+    // Check if target date already has an entry
+    if (isDateMove) {
+        const targetSnap = await db.collection('users').doc(editModalUserId).collection('sadhana').doc(newDateVal).get();
+        if (targetSnap.exists) {
+            if (!confirm(`⚠️ ${newDateVal} already has a sadhna entry. Overwrite it?`)) return;
+        }
+    }
+
     const { sc, total, dayPercent } = calculateScores(slp, wak, chn, rMin, hMin, sMin, nMin, dsMin, level);
     const now = new Date().toISOString();
     const editLog = {
         editedBy: userProfile.name, editedByUid: currentUser.uid, editedAt: now,
-        reason: reason || 'No reason provided',
+        reason: (reason || 'No reason provided') + (isDateMove ? ` [Date moved: ${editModalDate} → ${newDateVal}]` : ''),
         original: {
             sleepTime: editModalOriginal.sleepTime||'NR', wakeupTime: editModalOriginal.wakeupTime||'NR',
             chantingTime: editModalOriginal.chantingTime||'NR',
@@ -2139,18 +2174,28 @@ window.submitEditSadhana = async () => {
         }
     };
     try {
-        const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate);
+        const targetDate = isDateMove ? newDateVal : editModalDate;
+        const docRef = db.collection('users').doc(editModalUserId).collection('sadhana').doc(targetDate);
         await docRef.set({
             sleepTime:slp, wakeupTime:wak, chantingTime:chn,
             readingMinutes:rMin, hearingMinutes:hMin, serviceMinutes:sMin,
             notesMinutes:nMin, daySleepMinutes:dsMin,
             scores:sc, totalScore:total, dayPercent,
+            levelAtSubmission: level,
             editedAt: firebase.firestore.FieldValue.serverTimestamp(),
             editedBy: userProfile.name
         }, { merge: true });
         await docRef.set({ editLog: firebase.firestore.FieldValue.arrayUnion(editLog) }, { merge: true });
+
+        // If date was moved, delete the old date entry
+        if (isDateMove) {
+            await db.collection('users').doc(editModalUserId).collection('sadhana').doc(editModalDate).delete();
+        }
+
         closeEditModal();
-        alert(`✅ Sadhna updated!\nNew Score: ${total} (${dayPercent}%)`);
+        alert(isDateMove
+            ? `✅ Sadhna moved to ${newDateVal}!\nScore: ${total} (${dayPercent}%)`
+            : `✅ Sadhna updated!\nNew Score: ${total} (${dayPercent}%)`);
     } catch (err) {
         console.error('Edit save error:', err);
         alert('❌ Save failed: ' + err.message);
