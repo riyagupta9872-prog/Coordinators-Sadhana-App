@@ -261,11 +261,21 @@ window.downloadUserExcel = async (userId, userName) => {
             }
             const fd      = fairDenominator(week.sunStr, Object.entries(week.days).map(([id,d])=>({id,sleepTime:d.sleepTime||''})), uData.joinedDate);
             const pct     = Math.round((T.tot/fd)*100);
+            // Total row: activity-wise totals
             const totRow  = dataArray.length;
-            dataArray.push(['WEEKLY TOTAL','',T.sl,'',T.wu,'',T.ch,T.rdm,T.rd,T.hrm,T.hr,T.svm,T.sv,T.ntm,T.nt,T.dsm,T.ds,T.tot,pct+'%']);
+            dataArray.push([`Total/${fd}`, '', T.sl, '', T.wu, '', T.ch, T.rdm, T.rd, T.hrm, T.hr, T.svm, T.sv, T.ntm, T.nt, T.dsm, T.ds, T.tot, '']);
             styleMap[totRow] = 'total';
+            // Activity % row: percentage per activity
+            const isSBx = (uData.level === 'Senior Batch');
+            const actMaxMap = { sl:25, wu:25, ch:25, rd:25, hr:25, sv:isSBx?10:25, nt:isSBx?15:0, ds:10 };
+            const dayCount7 = Math.max(fd / 160, 1);
+            const aPct = (v, mx) => mx > 0 ? Math.round(v * 100 / (mx * dayCount7)) + '%' : '—';
+            const pctRow = dataArray.length;
+            dataArray.push(['Sadhna %', '', aPct(T.sl, actMaxMap.sl), '', aPct(T.wu, actMaxMap.wu), '', aPct(T.ch, actMaxMap.ch), '', aPct(T.rd, actMaxMap.rd), '', aPct(T.hr, actMaxMap.hr), '', aPct(T.sv, actMaxMap.sv), '', aPct(T.nt, actMaxMap.nt), '', aPct(T.ds, actMaxMap.ds), '', '']);
+            styleMap[pctRow] = 'actPct';
+            // Overall row
             const sumRow  = dataArray.length;
-            dataArray.push([`WEEKLY %: ${T.tot} / ${fd} = ${pct}%`,...Array(COLS-1).fill('')]);
+            dataArray.push([`OVERALL`, `${pct}%`, ...Array(COLS-2).fill('')]);
             styleMap[sumRow] = 'summary';
             if (wi < sortedWeeks.length-1) {
                 dataArray.push(Array(COLS).fill(''));
@@ -287,6 +297,22 @@ window.downloadUserExcel = async (userId, userName) => {
             styleCell(ws, `A${r+1}`, { bold:true, fill:'EBF3FB', align:'left' });
             styleCell(ws, `B${r+1}`, { align:'left' });
         }
+        // Score conditional formatting helper
+        const scoreColor = (val) => {
+            if (val >= 20) return { fill:'D5F5E3', fontColor:'15803D' }; // green
+            if (val >= 10) return { fill:'FEF9E7', fontColor:'92400E' }; // yellow
+            if (val >= 0)  return { fill:'FFFFFF', fontColor:'1A252F' }; // neutral
+            return { fill:'FADBD8', fontColor:'C0392B' }; // red
+        };
+        const pctColor = (str) => {
+            const v = parseInt(str) || 0;
+            if (v >= 70) return { fill:'D5F5E3', fontColor:'15803D' };
+            if (v >= 50) return { fill:'FEF9E7', fontColor:'92400E' };
+            if (v >= 0)  return { fill:'FAD7A0', fontColor:'C0392B' };
+            return { fill:'FADBD8', fontColor:'C0392B' };
+        };
+        const scoreCols = [2,4,6,8,10,12,14,16]; // mark columns
+
         Object.entries(styleMap).forEach(([rStr, type]) => {
             const r    = parseInt(rStr);
             const rNum = r + 1;
@@ -295,30 +321,65 @@ window.downloadUserExcel = async (userId, userName) => {
             } else if (type === 'colHeader') {
                 for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'2E86C1', fontColor:'FFFFFF', sz:10, align:'center' });
             } else if (type === 'total') {
-                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'D5E8F7', align:'center' });
+                for (let c=0;c<COLS;c++) {
+                    const ref = `${colLetter(c)}${rNum}`;
+                    const cell = ws[ref];
+                    if (cell && scoreCols.includes(c)) {
+                        const val = typeof cell.v === 'number' ? cell.v : 0;
+                        const sc = scoreColor(val);
+                        styleCell(ws, ref, { bold:true, fill:sc.fill, fontColor:sc.fontColor, align:'center' });
+                    } else {
+                        styleCell(ws, ref, { bold:true, fill:'D5E8F7', align:'center' });
+                    }
+                }
+                styleCell(ws, `A${rNum}`, { bold:true, fill:'D5E8F7', align:'left' });
+                // Total score column
+                const totRef = `${colLetter(17)}${rNum}`;
+                if (ws[totRef]) { const sc = scoreColor(ws[totRef].v||0); styleCell(ws, totRef, { bold:true, fill:sc.fill, fontColor:sc.fontColor, align:'center', sz:12 }); }
+            } else if (type === 'actPct') {
+                for (let c=0;c<COLS;c++) {
+                    const ref = `${colLetter(c)}${rNum}`;
+                    const cell = ws[ref];
+                    if (cell && typeof cell.v === 'string' && cell.v.includes('%')) {
+                        const pc = pctColor(cell.v);
+                        styleCell(ws, ref, { bold:true, fill:pc.fill, fontColor:pc.fontColor, align:'center' });
+                    } else {
+                        styleCell(ws, ref, { bold:true, fill:'EBF3FB', align:'center' });
+                    }
+                }
+                styleCell(ws, `A${rNum}`, { bold:true, fill:'EBF3FB', fontColor:'1A3C5E', align:'left' });
             } else if (type === 'summary') {
-                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'EBF3FB', fontColor:'1A3C5E', align:'center' });
+                for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', align:'center', sz:14 });
+                styleCell(ws, `A${rNum}`, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', align:'left', sz:14 });
+                styleCell(ws, `B${rNum}`, { bold:true, fill:'1A3C5E', fontColor:'FFFFFF', align:'left', sz:14 });
             } else if (type === 'nr') {
                 for (let c=0;c<COLS;c++) styleCell(ws, `${colLetter(c)}${rNum}`, { fill:'FDE8E8', fontColor:'C0392B', align:'center' });
-                if (ws[`A${rNum}`]) ws[`A${rNum}`].s.alignment.horizontal = 'left';
+                styleCell(ws, `A${rNum}`, { bold:true, fill:'FDE8E8', fontColor:'C0392B', align:'left' });
             } else if (type === 'data') {
-                styleCell(ws, `A${rNum}`, { align:'left' });
-                const scoreCols = [2,4,6,8,10,12,14,16];
+                // Date column bold
+                styleCell(ws, `A${rNum}`, { bold:true, align:'left' });
+                // Score columns with conditional formatting
                 for (let c=0;c<COLS;c++) {
                     const ref  = `${colLetter(c)}${rNum}`;
                     const cell = ws[ref];
                     if (!cell) continue;
-                    if (scoreCols.includes(c) || c===17) {
+                    if (scoreCols.includes(c)) {
                         const val = typeof cell.v === 'number' ? cell.v : parseFloat(cell.v)||0;
-                        const fill  = val >= 20 ? 'D5F5E3' : val >= 10 ? 'FEF9E7' : val >= 0 ? 'FAD7A0' : 'FADBD8';
-                        const fColor = val < 0 ? 'C0392B' : '1A252F';
-                        styleCell(ws, ref, { fill, fontColor:fColor, align:'center' });
+                        const sc = scoreColor(val);
+                        styleCell(ws, ref, { fill:sc.fill, fontColor:sc.fontColor, align:'center' });
+                    } else if (c === 17) {
+                        // Total column bold
+                        const val = typeof cell.v === 'number' ? cell.v : 0;
+                        const sc = scoreColor(val);
+                        styleCell(ws, ref, { bold:true, fill:sc.fill, fontColor:sc.fontColor, align:'center' });
+                    } else if (c === 18) {
+                        // Day % column
+                        const pc = pctColor(String(cell.v));
+                        styleCell(ws, ref, { bold:true, fill:pc.fill, fontColor:pc.fontColor, align:'center' });
                     } else {
                         styleCell(ws, ref, { align:'center' });
                     }
                 }
-                const totRef = `R${rNum}`;
-                if (ws[totRef]) ws[totRef].s.font.bold = true;
             }
         });
         ws['!freeze'] = { xSplit:1, ySplit:PROFILE_ROWS, topLeftCell:'B9' };
@@ -335,14 +396,15 @@ window.downloadMasterReport = async () => {
         const cats = visibleCategories();
         const userData = [];
         const weekMap = new Map();
-        for (const uDoc of usersSnap.docs) {
+        const eligibleDocs = usersSnap.docs.filter(d => cats.includes(d.data().level||'Senior Batch'));
+        const allMasterSnaps = await Promise.all(eligibleDocs.map(d => d.ref.collection('sadhana').get()));
+        eligibleDocs.forEach((uDoc, idx) => {
             const u = uDoc.data();
-            if (!cats.includes(u.level||'Senior Batch')) continue;
-            const sSnap = await uDoc.ref.collection('sadhana').get();
+            const sSnap = allMasterSnaps[idx];
             const entries = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||''}));
             entries.forEach(en => { const wi = getWeekInfo(en.date); weekMap.set(wi.sunStr, wi.label); });
             userData.push({ user:u, entries });
-        }
+        });
         userData.sort((a,b)=>(a.user.name||'').localeCompare(b.user.name||''));
         const allWeeks = Array.from(weekMap.entries()).sort((a,b) => b[0].localeCompare(a[0])).map(([sunStr, label]) => ({ sunStr, label }));
         const rows = [['User Name','Position Level','Chanting Category',...allWeeks.map(w=>w.label.replace('_',' '))]];
@@ -411,10 +473,12 @@ window.downloadCategoryExcel = async (category) => {
 
         const wb = XLSX.utils.book_new();
         const DAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const allCatSnaps = await Promise.all(catUsers.map(d => d.ref.collection('sadhana').get()));
 
-        for (const uDoc of catUsers) {
+        for (let _ci = 0; _ci < catUsers.length; _ci++) {
+            const uDoc = catUsers[_ci];
             const u = uDoc.data();
-            const sSnap = await uDoc.ref.collection('sadhana').get();
+            const sSnap = allCatSnaps[_ci];
             if (sSnap.empty) continue;
 
             const weeksData = {};
@@ -748,6 +812,7 @@ async function loadUserWCR() {
         const u     = uDoc.data();
         const sSnap = allSnaps[rowIdx];
         const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
+        const entsMap = new Map(ents.map(e => [e.date, e]));
         sadhanaCache.set(uDoc.id, ents);
 
         const stripeBg = rowIdx % 2 === 0 ? '#ffffff' : '#f8fafc';
@@ -757,10 +822,10 @@ async function loadUserWCR() {
         window._wcrUserList.push({ uid: uDoc.id, name: u.name||'', level: u.level||'', chanting: u.chantingCategory||'', rounds: u.exactRounds||'0', role: u.role||'user' });
 
         const nameClick = isAnyAdmin()
-            ? ` onclick="openWCRUser(${wcrIdx})" style="cursor:pointer;" title="View ${u.name||'user'}"`
+            ? ` onclick="openWCRUser(${wcrIdx})" style="cursor:pointer;" title="View ${esc(u.name||'user')}"`
             : '';
         tHtml += `<tr style="background:${stripeBg}">
-            <td class="comp-td comp-name"${nameClick}>${u.name}</td>
+            <td class="comp-td comp-name"${nameClick}>${esc(u.name)}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>`;
 
         const uJoined = u.joinedDate || APP_START;
@@ -770,7 +835,7 @@ async function loadUserWCR() {
             for (let i=0;i<7;i++) {
                 const ds=curr.toISOString().split('T')[0];
                 if (ds < APP_START || ds > todayC || ds < uJoined) { curr.setDate(curr.getDate()+1); continue; }
-                const en=ents.find(e=>e.date===ds);
+                const en=entsMap.get(ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds,sleepTime:en.sleepTime||''}); }
                 else if (ds < todayC) { tot += nrPenalty(u.level); }
                 curr.setDate(curr.getDate()+1);
@@ -1020,11 +1085,17 @@ async function loadHomePanel(weekOffset) {
     const se = new Date(ws); se.setDate(se.getDate() - 1);
     for (let i = 0; i < 7; i++) { streakExtra.push(toStr(se)); se.setDate(se.getDate() - 1); }
     const allFetchDates = [...dates, ...streakExtra];
+    const sortedFetch = [...allFetchDates].sort();
 
-    const snaps = await Promise.all(
-        allFetchDates.map(d => db.collection('users').doc(currentUser.uid)
-            .collection('sadhana').doc(d).get())
-    );
+    // Single range query instead of 14 individual doc reads
+    const rangeSnap = await db.collection('users').doc(currentUser.uid)
+        .collection('sadhana')
+        .where(firebase.firestore.FieldPath.documentId(), '>=', sortedFetch[0])
+        .where(firebase.firestore.FieldPath.documentId(), '<=', sortedFetch[sortedFetch.length - 1])
+        .get();
+    const snapMap = new Map();
+    rangeSnap.docs.forEach(d => snapMap.set(d.id, d.data()));
+
     const filledSet = new Set();
     let totalScore = 0, dayCount = 0;
     const actTotals = { sleep: 0, wakeup: 0, chanting: 0, reading: 0, hearing: 0, service: 0, notes: 0 };
@@ -1034,10 +1105,9 @@ async function loadHomePanel(weekOffset) {
     const uJd = userProfile?.joinedDate || APP_START;
     const uLevel = userProfile?.level || 'Senior Batch';
 
-    snaps.forEach((snap, i) => {
-        const ds = allFetchDates[i];
-        if (snap.exists) {
-            const d = snap.data();
+    allFetchDates.forEach((ds, i) => {
+        const d = snapMap.get(ds);
+        if (d) {
             if (d.sleepTime && d.sleepTime !== 'NR') {
                 filledSet.add(ds);
                 if (i < dates.length) {
@@ -1168,10 +1238,14 @@ async function loadSAHome(weekOffset, btn) {
 
     const userRows = [];
 
-    // Fetch all sadhana in parallel
+    // Fetch all sadhana via range queries (1 query per user instead of N*7 individual reads)
     const nonSADocs = usersSnap.docs.filter(d => d.data().role !== 'superAdmin');
+    const startStr = dates[0], endStr = dates[dates.length - 1];
     const allSnaps = await Promise.all(nonSADocs.map(uDoc =>
-        Promise.all(dates.map(d => uDoc.ref.collection('sadhana').doc(d).get()))
+        uDoc.ref.collection('sadhana')
+            .where(firebase.firestore.FieldPath.documentId(), '>=', startStr)
+            .where(firebase.firestore.FieldPath.documentId(), '<=', endStr)
+            .get()
     ));
 
     nonSADocs.forEach((uDoc, idx) => {
@@ -1180,12 +1254,12 @@ async function loadSAHome(weekOffset, btn) {
         if (catCounts[lvl] !== undefined) catCounts[lvl]++;
         else catCounts[lvl] = 1;
 
-        const snaps = allSnaps[idx];
+        const filledSet = new Set();
         let daysFilled = 0, totalScore = 0;
-        snaps.forEach(snap => {
-            if (snap.exists) {
-                const d = snap.data();
-                if (d.sleepTime && d.sleepTime !== 'NR') { daysFilled++; totalScore += d.totalScore ?? 0; }
+        allSnaps[idx].docs.forEach(d => {
+            const data = d.data();
+            if (data.sleepTime && data.sleepTime !== 'NR') {
+                daysFilled++; totalScore += data.totalScore ?? 0; filledSet.add(d.id);
             }
         });
         const weekPct = daysFilled > 0 ? Math.round(totalScore * 100 / (daysFilled * 160)) : 0;
@@ -1193,14 +1267,7 @@ async function loadSAHome(weekOffset, btn) {
         // Streak: count consecutive days backwards from today/yesterday
         let streak = 0;
         const chk = new Date(today + 'T00:00:00');
-        // Check if today is filled (from snaps if weekOffset=0)
-        const todayIdx = (weekOffset ?? 0) === 0 ? dates.indexOf(today) : -1;
-        const todayFilled = todayIdx >= 0 && snaps[todayIdx]?.exists && snaps[todayIdx].data().sleepTime && snaps[todayIdx].data().sleepTime !== 'NR';
-        if (!todayFilled) chk.setDate(chk.getDate() - 1);
-        const filledSet = new Set();
-        snaps.forEach((s, i) => {
-            if (s.exists && s.data().sleepTime && s.data().sleepTime !== 'NR') filledSet.add(dates[i]);
-        });
+        if (!filledSet.has(today)) chk.setDate(chk.getDate() - 1);
         while (filledSet.has(toStr(chk))) { streak++; chk.setDate(chk.getDate() - 1); }
 
         const lvlShort = lvl.replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
@@ -1905,6 +1972,7 @@ async function loadAdminPanel() {
         const u     = uDoc.data();
         const sSnap = allAdminSnaps[rowIdx];
         const ents  = sSnap.docs.map(d=>({date:d.id, score:d.data().totalScore||0, sleepTime:d.data().sleepTime||'', scores:d.data().scores||{}}));
+        const entsMap = new Map(ents.map(e => [e.date, e]));
         userSadhanaCache.set(uDoc.id, ents);
 
         const submittedDates = new Set(sSnap.docs.map(d => d.id).filter(d => d >= APP_START));
@@ -1926,7 +1994,7 @@ async function loadAdminPanel() {
         const cmpIdx = window._adminCmpUserList.length;
         window._adminCmpUserList.push({ uid: uDoc.id, name: u.name||'', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user' });
         tHtml += `<tr style="background:${stripeBg}">
-            <td class="comp-td comp-name" onclick="openAdminCmpUser(${cmpIdx})" style="cursor:pointer;" title="View ${(u.name||'').replace(/"/g,'&quot;')}">${u.name}</td>
+            <td class="comp-td comp-name" onclick="openAdminCmpUser(${cmpIdx})" style="cursor:pointer;" title="View ${esc(u.name)}">${esc(u.name)}</td>
             <td class="comp-td comp-meta">${lvlShort}</td>
             <td class="comp-td comp-meta">${u.chantingCategory||'N/A'}</td>`;
         const uJd2 = u.joinedDate || APP_START;
@@ -1937,7 +2005,7 @@ async function loadAdminPanel() {
             for (let i=0;i<7;i++) {
                 const ds=curr.toISOString().split('T')[0];
                 if (ds < APP_START || ds > todayComp || ds < uJd2) { curr.setDate(curr.getDate()+1); continue; }
-                const en=ents.find(e=>e.date===ds);
+                const en=entsMap.get(ds);
                 if (en) { tot += en.score; weekEnts.push({id:ds, sleepTime:en.sleepTime||'', score:en.score}); }
                 else if (ds < todayComp) { tot += nrPenalty(u.level); }
                 curr.setDate(curr.getDate()+1);
@@ -1962,7 +2030,7 @@ async function loadAdminPanel() {
         card.innerHTML = `
             <div class="user-list-item" onclick="openUAC('${uDoc.id}','${safe}','${lvlShort}','${u.chantingCategory||'N/A'}','${u.exactRounds||'?'}','${roleStr}')">
                 <div>
-                    <div class="user-list-name">${u.name} ${badge}</div>
+                    <div class="user-list-name">${esc(u.name)} ${badge}</div>
                     <div class="sa-user-meta">${lvlShort} · ${u.chantingCategory||'N/A'} · ${u.exactRounds||'?'} rounds</div>
                 </div>
                 <span class="user-list-chevron">›</span>
@@ -2070,16 +2138,18 @@ window.openEditModal = async (userId, date) => {
     if (!isSuperAdmin()) return;
     editModalUserId = userId;
     editModalDate   = date;
-    const docRef  = db.collection('users').doc(userId).collection('sadhana').doc(date);
-    const docSnap = await docRef.get();
+    const [docSnap, uSnap] = await Promise.all([
+        db.collection('users').doc(userId).collection('sadhana').doc(date).get(),
+        db.collection('users').doc(userId).get()
+    ]);
+    const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
+    const _nrDef  = nrPenalty(uLevel);
     const d = docSnap.exists ? docSnap.data() : {
         sleepTime: 'NR', wakeupTime: 'NR', chantingTime: 'NR',
         readingMinutes: 0, hearingMinutes: 0, serviceMinutes: 0, notesMinutes: 0, daySleepMinutes: 0,
-        totalScore: -35, dayPercent: -22
+        totalScore: _nrDef, dayPercent: Math.round((_nrDef/160)*100)
     };
     editModalOriginal = { ...d };
-    const uSnap   = await db.collection('users').doc(userId).get();
-    const uLevel  = uSnap.exists ? (uSnap.data().level || 'Senior Batch') : 'Senior Batch';
     document.getElementById('edit-user-level').value = uLevel;
     document.getElementById('edit-sleep-time').value      = d.sleepTime === 'NR' ? '' : (d.sleepTime      || '');
     document.getElementById('edit-wakeup-time').value     = d.wakeupTime === 'NR' ? '' : (d.wakeupTime     || '');
@@ -3193,6 +3263,7 @@ window.loadLeaderboard = async (force) => {
 
     try {
         const usersSnap = await db.collection('users').get();
+        if (thisReqId !== _lbRequestId) { _lbLoading = false; return; }
 
         // Determine level(s) to show based on role
         let levelFilter;
@@ -3494,7 +3565,7 @@ function buildTaskCard(t, showDelete, allUsers) {
             </button>
             <div class="task-status-detail">
                 ${pendingCount > 0 ? `<div style="font-size:11px;font-weight:700;color:var(--danger);margin:6px 0 4px;">⬜ Pending (${pendingCount})</div>${pendList}
-                <button class="task-remind-btn" onclick="remindPendingTask('${t.id}','${t.title.replace(/'/g,"\\'")}')">🔔 Send Reminder to Pending</button>` : ''}
+                <button class="task-remind-btn" onclick="remindPendingTask('${t.id}','${t.title.replace(/'/g,"\\'")}',this)">🔔 Send Reminder to Pending</button>` : ''}
                 ${doneCount > 0 ? `<div style="font-size:11px;font-weight:700;color:var(--success);margin:8px 0 4px;">✅ Completed (${doneCount})</div>${doneList}` : ''}
             </div>
         </div>`;
@@ -3502,8 +3573,8 @@ function buildTaskCard(t, showDelete, allUsers) {
 
     return `<div class="task-card">
         ${delBtn}
-        <div class="task-title">${t.title || '(No title)'}</div>
-        ${t.body ? `<div class="task-body">${t.body}</div>` : ''}
+        <div class="task-title">${esc(t.title) || '(No title)'}</div>
+        ${t.body ? `<div class="task-body">${esc(t.body)}</div>` : ''}
         ${linkHtml}
         <div class="task-meta" style="margin-top:8px;">
             <span class="task-cat-badge">${catLabel}</span>
@@ -3590,9 +3661,8 @@ window.postTask = async () => {
     }
 };
 
-window.remindPendingTask = async (taskId, taskTitle) => {
+window.remindPendingTask = async (taskId, taskTitle, btn) => {
     if (!isSuperAdmin()) return;
-    const btn = event.target;
     btn.disabled = true; btn.textContent = '⏳ Sending…';
     try {
         const taskDoc = await db.collection('tasks').doc(taskId).get();
