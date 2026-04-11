@@ -1298,7 +1298,9 @@ async function loadSAHome(weekOffset, btn) {
         dates.forEach(ds => {
             if (ds < today && !filledSet.has(ds)) totalScore += nrPenalty(lvl);
         });
-        const weekPct = fairDays > 0 ? Math.round(totalScore * 100 / (fairDays * 160)) : 0;
+        // Fair denominator: past days always count; today counts only if this user already filled it
+        const uFairDays = dates.filter(ds => ds < today || filledSet.has(ds)).length;
+        const weekPct = uFairDays > 0 ? Math.round(totalScore * 100 / (uFairDays * 160)) : 0;
 
         // Streak: count consecutive days backwards from today/yesterday
         let streak = 0;
@@ -1307,7 +1309,7 @@ async function loadSAHome(weekOffset, btn) {
         while (filledSet.has(toStr(chk))) { streak++; chk.setDate(chk.getDate() - 1); }
 
         const lvlShort = lvl.replace(' Co-ordinator','').replace(' Coordinator','').replace('Senior Batch','SB');
-        userRows.push({ uid: uDoc.id, name: u.name || '—', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user', daysFilled, fairDays, weekPct, streak, totalScore });
+        userRows.push({ uid: uDoc.id, name: u.name || '—', level: lvlShort, chanting: u.chantingCategory||'N/A', rounds: u.exactRounds||'?', role: u.role||'user', daysFilled, fairDays: uFairDays, weekPct, streak, totalScore });
     });
 
     // Total count + category counts in filter badges
