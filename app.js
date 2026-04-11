@@ -34,6 +34,38 @@ const visibleCategories = () => {
     return [];
 };
 
+// ═══════════════════════════════════════════════════════════
+// BACK-BUTTON / HISTORY MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+let _backNavActive = false;
+function _pushBackState() { history.pushState({ modal: true }, ''); }
+
+function _closeTopmostOverlay() {
+    if (!document.getElementById('edit-sadhana-modal').classList.contains('hidden'))  { closeEditModal();           return true; }
+    if (!document.getElementById('edit-history-modal').classList.contains('hidden'))   { closeEditHistoryModal();    return true; }
+    if (!document.getElementById('reject-modal').classList.contains('hidden'))         { closeRejectModal();         return true; }
+    if (!document.getElementById('progress-modal').classList.contains('hidden'))       { closeProgressModal();       return true; }
+    if (!document.getElementById('aa-modal').classList.contains('hidden'))             { closeActivityModal();       return true; }
+    if (!document.getElementById('user-report-modal').classList.contains('hidden'))    { closeUserModal();           return true; }
+    if (!document.getElementById('password-modal').classList.contains('hidden'))       { closePasswordModal();       return true; }
+    if (!document.getElementById('notifications-modal').classList.contains('hidden'))  { closeNotificationsPanel();  return true; }
+    if (!document.getElementById('uac-overlay').classList.contains('hidden'))          { closeUAC();                 return true; }
+    if (!document.getElementById('admin-drawer-overlay').classList.contains('hidden')) { closeAdminDrawer();         return true; }
+    if (document.getElementById('user-sidebar').classList.contains('open'))            { closeUserSidebar();         return true; }
+    if (!document.getElementById('user-guide-modal').classList.contains('hidden'))
+        { document.getElementById('user-guide-modal').classList.add('hidden'); return true; }
+    if (!document.getElementById('about-modal').classList.contains('hidden'))
+        { document.getElementById('about-modal').classList.add('hidden'); return true; }
+    return false;
+}
+
+window.addEventListener('popstate', (e) => {
+    if (!(e.state && e.state.modal)) return;
+    _backNavActive = true;
+    _closeTopmostOverlay();
+    _backNavActive = false;
+});
+
 // HTML-escape to prevent XSS when inserting user data into innerHTML
 const _escDiv = document.createElement('div');
 function esc(s) { _escDiv.textContent = s || ''; return _escDiv.innerHTML; }
@@ -1262,7 +1294,11 @@ async function loadSAHome(weekOffset, btn) {
                 daysFilled++; totalScore += data.totalScore ?? 0; filledSet.add(d.id);
             }
         });
-        const weekPct = daysFilled > 0 ? Math.round(totalScore * 100 / (daysFilled * 160)) : 0;
+        // Apply NR penalty for each missed past day — matches Rankings sort order
+        dates.forEach(ds => {
+            if (ds < today && !filledSet.has(ds)) totalScore += nrPenalty(lvl);
+        });
+        const weekPct = fairDays > 0 ? Math.round(totalScore * 100 / (fairDays * 160)) : 0;
 
         // Streak: count consecutive days backwards from today/yesterday
         let streak = 0;
@@ -1313,7 +1349,7 @@ async function loadSAHome(weekOffset, btn) {
 }
 
 function renderSAHomeTable(rows) {
-    rows.sort((a, b) => b.daysFilled - a.daysFilled || b.weekPct - a.weekPct);
+    rows.sort((a, b) => b.totalScore - a.totalScore || b.weekPct - a.weekPct);
     const tbody = document.getElementById('sa-home-tbody');
     if (!tbody) return;
     if (!rows.length) {
@@ -1446,12 +1482,14 @@ window.openUAC = (uid, name, level, chanting, rounds, role) => {
     document.getElementById('uac-sheet').classList.add('open');
     document.getElementById('uac-overlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    _pushBackState();
 };
 
 window.closeUAC = () => {
     document.getElementById('uac-sheet').classList.remove('open');
     document.getElementById('uac-overlay').classList.add('hidden');
     document.body.style.overflow = '';
+    if (!_backNavActive) history.back();
 };
 
 window.uacHistory  = () => { closeUAC(); openUserModal(_uacUID, _uacName); };
@@ -1525,6 +1563,11 @@ function loadReports(userId, containerId) {
 
     activeListener = db.collection('users').doc(userId).collection('sadhana')
         .onSnapshot(snap => {
+            // Self-heal: if the user has submitted entries before _jd, their joinedDate was
+            // wrongly set by the old auto-fix code. Fall back to APP_START in that case.
+            const hasPreJdEntries = snap.docs.some(doc => doc.id >= APP_START && doc.id < _jd);
+            const effectiveJd = hasPreJdEntries ? APP_START : _jd;
+
             const weeksList = [];
             for (let i=0;i<4;i++) {
                 const d = new Date(); d.setDate(d.getDate()-i*7);
@@ -1543,7 +1586,7 @@ function loadReports(userId, containerId) {
                 for (let i=0;i<7;i++) {
                     const ds = curr.toISOString().split('T')[0];
                     if (ds>=APP_START && isPastDate(ds) && !wk.data.find(e=>e.id===ds)) {
-                        if (ds < _jd) {
+                        if (ds < effectiveJd) {
                             wk.data.push(getPreJoinData(ds));
                         } else {
                             const nr=getNRData(ds, viewedUser.level); wk.data.push(nr); wk.total+=nr.totalScore;
@@ -1555,7 +1598,7 @@ function loadReports(userId, containerId) {
             container.innerHTML = '';
             weeksList.forEach(wi => {
                 const wk     = weeks[wi.label];
-                const wkFD   = fairDenominator(wi.sunStr, wk.data, _jd);
+                const wkFD   = fairDenominator(wi.sunStr, wk.data, effectiveJd);
                 const wkPct  = Math.round((wk.total / wkFD) * 100);
                 const wkColor = wk.total < 0 ? '#dc2626' : wkPct < 30 ? '#d97706' : '#16a34a';
                 const div    = document.createElement('div'); div.className='week-card';
@@ -1761,6 +1804,7 @@ window.openProgressModal = async (userId, userName) => {
     progressModalUserName = userName;
     document.getElementById('progress-modal-title').textContent = `📈 ${userName} — Progress`;
     document.getElementById('progress-modal').classList.remove('hidden');
+    _pushBackState();
     document.querySelectorAll('#progress-modal-tabs .chart-tab-btn').forEach((b,i) => b.classList.toggle('active', i===0));
     const data = await fetchChartData(userId, 'daily');
     modalChartInstance = renderChart('modal-progress-chart', data, modalChartInstance);
@@ -1769,6 +1813,7 @@ window.openProgressModal = async (userId, userName) => {
 window.closeProgressModal = () => {
     document.getElementById('progress-modal').classList.add('hidden');
     if (modalChartInstance) { modalChartInstance.destroy(); modalChartInstance = null; }
+    if (!_backNavActive) history.back();
 };
 
 window.setModalChartView = async (view, btn) => {
@@ -1872,12 +1917,14 @@ window.openAdminDrawer = () => {
     const firstNav = document.querySelector('.drawer-nav-item');
     if (firstNav) firstNav.classList.add('active');
     if (!adminPanelLoaded) { adminPanelLoaded = true; loadAdminPanel(); }
+    _pushBackState();
 };
 
 window.closeAdminDrawer = () => {
     document.getElementById('admin-drawer').classList.remove('open');
     document.getElementById('admin-drawer-overlay').classList.add('hidden');
     document.body.style.overflow = '';
+    if (!_backNavActive) history.back();
 };
 
 window.selectAdminSection = (section, btn) => {
@@ -2173,11 +2220,13 @@ window.openEditModal = async (userId, date) => {
     document.getElementById('edit-notes-row').classList.toggle('hidden', uLevel !== 'Senior Batch');
     updateEditPreview();
     document.getElementById('edit-sadhana-modal').classList.remove('hidden');
+    _pushBackState();
 };
 
 window.closeEditModal = () => {
     document.getElementById('edit-sadhana-modal').classList.add('hidden');
     editModalUserId = editModalDate = editModalOriginal = null;
+    if (!_backNavActive) history.back();
 };
 
 window.updateEditPreview = () => {
@@ -2321,10 +2370,12 @@ window.showEditHistory = async (evt, date, userId) => {
     });
     document.getElementById('edit-history-content').innerHTML = html;
     document.getElementById('edit-history-modal').classList.remove('hidden');
+    _pushBackState();
 };
 
 window.closeEditHistoryModal = () => {
     document.getElementById('edit-history-modal').classList.add('hidden');
+    if (!_backNavActive) history.back();
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -2375,11 +2426,13 @@ window.openRejectModal = async (userId, date, isRevoke) => {
 
     document.getElementById('reject-remarks').value = '';
     document.getElementById('reject-modal').classList.remove('hidden');
+    _pushBackState();
 };
 
 window.closeRejectModal = () => {
     document.getElementById('reject-modal').classList.add('hidden');
     _rejectState = null;
+    if (!_backNavActive) history.back();
 };
 
 window.submitRejectAction = async () => {
@@ -2475,9 +2528,11 @@ window.openPasswordModal = () => {
     document.getElementById('pwd-new').value     = '';
     document.getElementById('pwd-confirm').value = '';
     document.getElementById('password-modal').classList.remove('hidden');
+    _pushBackState();
 };
 window.closePasswordModal = () => {
     document.getElementById('password-modal').classList.add('hidden');
+    if (!_backNavActive) history.back();
 };
 window.submitPasswordChange = async () => {
     const curPwd  = document.getElementById('pwd-current').value.trim();
@@ -2535,10 +2590,12 @@ window.openUserModal = (id, name) => {
     document.getElementById('user-report-modal').classList.remove('hidden');
     document.getElementById('modal-user-name').textContent = `📋 ${name} — History`;
     loadReports(id, 'modal-report-container');
+    _pushBackState();
 };
 window.closeUserModal = () => {
     document.getElementById('user-report-modal').classList.add('hidden');
     if (activeListener) { activeListener(); activeListener = null; }
+    if (!_backNavActive) history.back();
 };
 window.openProfileEdit = () => {
     document.getElementById('profile-title').textContent    = 'Edit Profile';
@@ -2723,17 +2780,20 @@ window.openUserSidebar = () => {
         if (bellIcon) bellIcon.textContent = '✅';
         if (bellLabel) bellLabel.textContent = 'Notifications Enabled';
     }
+    _pushBackState();
 };
 window.closeUserSidebar = () => {
     document.getElementById('user-sidebar').classList.remove('open');
     document.getElementById('sidebar-overlay').classList.remove('open');
     document.body.style.overflow = '';
+    if (!_backNavActive) history.back();
 };
-window.openUserGuide = () => { document.getElementById('user-guide-modal').classList.remove('hidden'); };
-window.openAbout = () => { document.getElementById('about-modal').classList.remove('hidden'); };
-window.closeNotificationsPanel = () => { document.getElementById('notifications-modal').classList.add('hidden'); };
+window.openUserGuide = () => { document.getElementById('user-guide-modal').classList.remove('hidden'); _pushBackState(); };
+window.openAbout = () => { document.getElementById('about-modal').classList.remove('hidden'); _pushBackState(); };
+window.closeNotificationsPanel = () => { document.getElementById('notifications-modal').classList.add('hidden'); if (!_backNavActive) history.back(); };
 window.openNotificationsPanel = async () => {
     document.getElementById('notifications-modal').classList.remove('hidden');
+    _pushBackState();
     if (!currentUser) return;
     try {
         const snap = await db.collection('notifications').where('userId','==',currentUser.uid).orderBy('createdAt','desc').limit(20).get();
@@ -3725,6 +3785,7 @@ window.openActivityAnalysis = (uid, name) => {
     document.getElementById('aa-user-name').textContent = name;
     document.getElementById('aa-modal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    _pushBackState();
     // Reset tab buttons to "This Week"
     document.querySelectorAll('.aa-tab-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
     renderActivityAnalysis(uid, 'current-week');
@@ -3735,6 +3796,7 @@ window.closeActivityModal = () => {
     document.body.style.overflow = '';
     if (_aaChartDonut) { try { _aaChartDonut.destroy(); } catch(e){} _aaChartDonut = null; }
     if (_aaChartBar)   { try { _aaChartBar.destroy();   } catch(e){} _aaChartBar   = null; }
+    if (!_backNavActive) history.back();
 };
 
 window.setAATab = (tab, btn) => {
